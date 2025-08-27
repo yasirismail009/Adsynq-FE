@@ -1,0 +1,2255 @@
+import { motion } from 'framer-motion';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import ChartCard from '../dashboard/ChartCard';
+import { 
+  ArrowLeftIcon,
+  ChartBarIcon,
+  CurrencyDollarIcon,
+  EyeIcon,
+  CursorArrowRaysIcon,
+  UserIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  BuildingOfficeIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  ClockIcon,
+  GlobeAltIcon,
+  CreditCardIcon,
+  CogIcon,
+  UsersIcon,
+  FireIcon,
+  ShieldCheckIcon,
+  ChartPieIcon,
+  BoltIcon,
+  PlayIcon,
+  PauseIcon,
+  PhotoIcon,
+  AdjustmentsHorizontalIcon,
+  ShoppingCartIcon,
+  LinkIcon,
+  ArrowPathIcon,
+  DevicePhoneMobileIcon,
+  ChartBarSquareIcon,
+  UserGroupIcon,
+  ComputerDesktopIcon
+} from '@heroicons/react/24/outline';
+import { 
+  fetchGoogleSa360CampaignReport,
+  fetchGoogleSa360DemographicData,
+  fetchGoogleSa360DeviceTargeting,
+  fetchGoogleSa360AudienceTargeting,
+  fetchGoogleSa360Assets,
+  selectGoogleSa360CampaignReport,
+  selectGoogleSa360CampaignReportLoading,
+  selectGoogleSa360CampaignReportError,
+  selectGoogleSa360DemographicData,
+  selectGoogleSa360DemographicDataLoading,
+  selectGoogleSa360DemographicDataError,
+  selectGoogleSa360DeviceTargeting,
+  selectGoogleSa360DeviceTargetingLoading,
+  selectGoogleSa360DeviceTargetingError,
+  selectGoogleSa360AudienceTargeting,
+  selectGoogleSa360AudienceTargetingLoading,
+  selectGoogleSa360AudienceTargetingError,
+  selectGoogleSa360Assets,
+  selectGoogleSa360AssetsLoading,
+  selectGoogleSa360AssetsError
+} from '../../store/slices/googleSlice';
+
+// Helper functions for chart colors
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'ENABLED': return '#10B981';
+    case 'PAUSED': return '#F59E0B';
+    case 'REMOVED': return '#EF4444';
+    default: return '#6B7280';
+  }
+};
+
+const getChannelTypeColor = (type) => {
+  switch (type) {
+    case 'SEARCH': return '#3B82F6';
+    case 'DISPLAY': return '#8B5CF6';
+    case 'VIDEO': return '#EC4899';
+    case 'PERFORMANCE_MAX': return '#F59E0B';
+    case 'DEMAND_GEN': return '#8B5CF6';
+    default: return '#6B7280';
+  }
+};
+
+// Global request cache to prevent duplicate requests
+const requestCache = new Map();
+
+// Clean up old cache entries every 30 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of requestCache.entries()) {
+    if (now - entry.timestamp > 30000) { // 30 seconds
+      requestCache.delete(key);
+    }
+  }
+}, 30000);
+
+// Tab configuration
+const tabs = [
+  {
+    id: 'overview',
+    name: 'Overview',
+    icon: ChartBarSquareIcon,
+    description: 'Campaign performance and metrics'
+  },
+  {
+    id: 'demographics',
+    name: 'Gender and Ages',
+    icon: UserGroupIcon,
+    description: 'Gender and demographic breakdown'
+  },
+  {
+    id: 'devices',
+    name: 'Devices',
+    icon: ComputerDesktopIcon,
+    description: 'Device targeting and performance'
+  },
+  {
+    id: 'assets',
+    name: 'Assets',
+    icon: PhotoIcon,
+    description: 'Campaign assets and performance'
+  }
+];
+
+/**
+ * SA360 Campaign Detail Component
+ * 
+ * Optimized to prevent double API calls:
+ * - Uses useRef to track initial fetch state
+ * - Separates initial fetch from date range change fetches
+ * - Memoizes functions and objects to prevent unnecessary re-renders
+ * - Handles React StrictMode double-invocation in development
+ */
+const SA360CampaignDetail = () => {
+  const { campaignId, googleAccountId, customerId } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // SA360 Campaign Report selectors
+  const sa360CampaignReport = useSelector(selectGoogleSa360CampaignReport);
+  const sa360CampaignReportLoading = useSelector(selectGoogleSa360CampaignReportLoading);
+  const sa360CampaignReportError = useSelector(selectGoogleSa360CampaignReportError);
+  
+
+  
+  // SA360 Demographic Data selectors
+  const sa360DemographicData = useSelector(selectGoogleSa360DemographicData);
+  const sa360DemographicDataLoading = useSelector(selectGoogleSa360DemographicDataLoading);
+  const sa360DemographicDataError = useSelector(selectGoogleSa360DemographicDataError);
+  
+  // SA360 Device Targeting selectors
+  const sa360DeviceTargeting = useSelector(selectGoogleSa360DeviceTargeting);
+  const sa360DeviceTargetingLoading = useSelector(selectGoogleSa360DeviceTargetingLoading);
+  const sa360DeviceTargetingError = useSelector(selectGoogleSa360DeviceTargetingError);
+  
+  // SA360 Audience Targeting selectors
+  const sa360AudienceTargeting = useSelector(selectGoogleSa360AudienceTargeting);
+  const sa360AudienceTargetingLoading = useSelector(selectGoogleSa360AudienceTargetingLoading);
+  const sa360AudienceTargetingError = useSelector(selectGoogleSa360AudienceTargetingError);
+  
+  // SA360 Assets selectors
+  const sa360Assets = useSelector(selectGoogleSa360Assets);
+  const sa360AssetsLoading = useSelector(selectGoogleSa360AssetsLoading);
+  const sa360AssetsError = useSelector(selectGoogleSa360AssetsError);
+  
+  // Local state for dynamic date range - use useMemo to prevent recreation on every render
+  const initialDateRange = useMemo(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    return {
+      date_from: thirtyDaysAgo.toISOString().split('T')[0],
+      date_to: today.toISOString().split('T')[0]
+    };
+  }, []);
+
+  const [dateRange, setDateRange] = useState(initialDateRange);
+
+  // Ref to track if initial fetch has been made
+  // This prevents double API calls in React StrictMode (development only)
+  const hasInitialFetch = useRef(false);
+
+  // Date range options for quick selection
+  const dateRangeOptions = [
+    { label: 'Last 7 days', value: 7 },
+    { label: 'Last 30 days', value: 30 },
+    { label: 'Last 90 days', value: 90 },
+    { label: 'Last 6 months', value: 180 },
+    { label: 'Last year', value: 365 }
+  ];
+
+  // Function to update date range - memoized to prevent recreation
+  const updateDateRange = useCallback((days) => {
+    const today = new Date();
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - days);
+    
+    const newDateRange = {
+      date_from: startDate.toISOString().split('T')[0],
+      date_to: today.toISOString().split('T')[0]
+    };
+    
+    setDateRange(newDateRange);
+    console.log('Updated date range:', newDateRange);
+  }, []);
+
+  // Function to set custom date range - memoized to prevent recreation
+  const setCustomDateRange = useCallback((fromDate, toDate) => {
+    const newDateRange = {
+      date_from: fromDate,
+      date_to: toDate
+    };
+    
+    setDateRange(newDateRange);
+    console.log('Set custom date range:', newDateRange);
+  }, []);
+
+  // State for custom date picker
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+  const [customFromDate, setCustomFromDate] = useState(initialDateRange.date_from);
+  const [customToDate, setCustomToDate] = useState(initialDateRange.date_to);
+
+  // Memoized fetch function to prevent recreation on every render
+  const fetchCampaignData = useCallback(() => {
+    if (!googleAccountId || !customerId || !campaignId) {
+      console.log('Missing required parameters for fetch');
+      return;
+    }
+
+    // Create a unique request key
+    const requestKey = `${googleAccountId}-${customerId}-${campaignId}-${dateRange.date_from}-${dateRange.date_to}`;
+    
+    // Check global cache for duplicate requests
+    if (requestCache.has(requestKey)) {
+      const cacheEntry = requestCache.get(requestKey);
+      const now = Date.now();
+      
+      // If the same request was made within the last 5 seconds, skip it
+      if (now - cacheEntry.timestamp < 5000) {
+        console.log('Skipping duplicate request (cached):', requestKey);
+        return;
+      }
+    }
+
+    console.log('Fetching all SA360 campaign data:', { 
+      googleAccountId, 
+      customerId, 
+      campaignId, 
+      dateRange,
+      requestKey 
+    });
+
+    // Cache the request
+    requestCache.set(requestKey, { timestamp: Date.now() });
+    
+    // Fetch campaign report
+    dispatch(fetchGoogleSa360CampaignReport({ 
+      googleAccountId, 
+      customerId, 
+      campaignId,
+      params: dateRange 
+    }));
+    
+
+    
+    // Fetch demographic data
+    dispatch(fetchGoogleSa360DemographicData({ 
+      googleAccountId, 
+      customerId, 
+      campaignId,
+      params: dateRange 
+    }));
+    
+    // Fetch device targeting
+    dispatch(fetchGoogleSa360DeviceTargeting({ 
+      googleAccountId, 
+      customerId, 
+      campaignId,
+      params: dateRange 
+    }));
+    
+    // Fetch audience targeting
+    dispatch(fetchGoogleSa360AudienceTargeting({ 
+      googleAccountId, 
+      customerId, 
+      campaignId,
+      params: dateRange 
+    }));
+    
+    // Fetch assets
+    dispatch(fetchGoogleSa360Assets({ 
+      googleAccountId, 
+      customerId, 
+      campaignId,
+      params: dateRange 
+    }));
+  }, [googleAccountId, customerId, campaignId, dateRange, dispatch]);
+
+  // Debounced fetch function to prevent rapid successive calls
+  const debouncedFetch = useRef(null);
+
+  // Memoized initial fetch function that only runs once
+  const fetchInitialData = useCallback(() => {
+    if (googleAccountId && customerId && campaignId && !hasInitialFetch.current) {
+      console.log('Initial fetch triggered - setting hasInitialFetch to true');
+      hasInitialFetch.current = true;
+      fetchCampaignData();
+    } else {
+      console.log('Initial fetch skipped - already fetched or missing params:', {
+        hasInitialFetch: hasInitialFetch.current,
+        googleAccountId,
+        customerId,
+        campaignId
+      });
+    }
+  }, [googleAccountId, customerId, campaignId, fetchCampaignData]);
+
+  // Initial fetch - only run once when component mounts
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  // Fetch data when dateRange changes (but not on initial mount) - with debouncing
+  useEffect(() => {
+    if (hasInitialFetch.current && googleAccountId && customerId && campaignId) {
+      console.log('Date range changed - debouncing fetch request');
+      
+      // Clear any existing timeout
+      if (debouncedFetch.current) {
+        clearTimeout(debouncedFetch.current);
+      }
+      
+      // Set a new timeout for debounced fetch
+      debouncedFetch.current = setTimeout(() => {
+        console.log('Executing debounced fetch');
+        fetchCampaignData();
+      }, 300); // 300ms debounce delay
+    }
+  }, [dateRange, fetchCampaignData, googleAccountId, customerId, campaignId]);
+
+  // Update custom date picker values when dateRange changes
+  useEffect(() => {
+    setCustomFromDate(dateRange.date_from);
+    setCustomToDate(dateRange.date_to);
+  }, [dateRange]);
+
+  // Cleanup effect to clear timeout when component unmounts
+  useEffect(() => {
+    return () => {
+      if (debouncedFetch.current) {
+        clearTimeout(debouncedFetch.current);
+      }
+    };
+  }, []);
+
+  // Console log campaign report data when received
+  useEffect(() => {
+    if (sa360CampaignReport) {
+      console.log('SA360 Campaign Report Data:', sa360CampaignReport);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360CampaignReport, campaignId, googleAccountId, customerId]);
+
+
+
+  // Console log demographic data when received
+  useEffect(() => {
+    if (sa360DemographicData) {
+      console.log('SA360 Demographic Data:', sa360DemographicData);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DemographicData, campaignId, googleAccountId, customerId]);
+
+  // Console log device targeting data when received
+  useEffect(() => {
+    if (sa360DeviceTargeting) {
+      console.log('SA360 Device Targeting Data:', sa360DeviceTargeting);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DeviceTargeting, campaignId, googleAccountId, customerId]);
+
+  // Console log audience targeting data when received
+  useEffect(() => {
+    if (sa360AudienceTargeting) {
+      console.log('SA360 Audience Targeting Data:', sa360AudienceTargeting);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360AudienceTargeting, campaignId, googleAccountId, customerId]);
+
+  // Console log assets data when received
+  useEffect(() => {
+    if (sa360Assets) {
+      console.log('SA360 Assets Data:', sa360Assets);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360Assets, campaignId, googleAccountId, customerId]);
+
+  // Console log campaign report errors when they occur
+  useEffect(() => {
+    if (sa360CampaignReportError) {
+      console.error('SA360 Campaign Report Error:', sa360CampaignReportError);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360CampaignReportError, campaignId, googleAccountId, customerId]);
+
+
+
+  // Console log demographic data errors when they occur
+  useEffect(() => {
+    if (sa360DemographicDataError) {
+      console.error('SA360 Demographic Data Error:', sa360DemographicDataError);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DemographicDataError, campaignId, googleAccountId, customerId]);
+
+  // Console log device targeting errors when they occur
+  useEffect(() => {
+    if (sa360DeviceTargetingError) {
+      console.error('SA360 Device Targeting Error:', sa360DeviceTargetingError);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DeviceTargetingError, campaignId, googleAccountId, customerId]);
+
+  // Console log audience targeting errors when they occur
+  useEffect(() => {
+    if (sa360AudienceTargetingError) {
+      console.error('SA360 Audience Targeting Error:', sa360AudienceTargetingError);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360AudienceTargetingError, campaignId, googleAccountId, customerId]);
+
+  // Console log assets errors when they occur
+  useEffect(() => {
+    if (sa360AssetsError) {
+      console.error('SA360 Assets Error:', sa360AssetsError);
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360AssetsError, campaignId, googleAccountId, customerId]);
+
+  // Console log campaign report loading state
+  useEffect(() => {
+    if (sa360CampaignReportLoading) {
+      console.log('SA360 Campaign Report Loading...');
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360CampaignReportLoading, campaignId, googleAccountId, customerId]);
+
+
+
+  // Console log demographic data loading state
+  useEffect(() => {
+    if (sa360DemographicDataLoading) {
+      console.log('SA360 Demographic Data Loading...');
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DemographicDataLoading, campaignId, googleAccountId, customerId]);
+
+  // Console log device targeting loading state
+  useEffect(() => {
+    if (sa360DeviceTargetingLoading) {
+      console.log('SA360 Device Targeting Loading...');
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360DeviceTargetingLoading, campaignId, googleAccountId, customerId]);
+
+  // Console log audience targeting loading state
+  useEffect(() => {
+    if (sa360AudienceTargetingLoading) {
+      console.log('SA360 Audience Targeting Loading...');
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360AudienceTargetingLoading, campaignId, googleAccountId, customerId]);
+
+  // Console log assets loading state
+  useEffect(() => {
+    if (sa360AssetsLoading) {
+      console.log('SA360 Assets Loading...');
+      console.log('Campaign ID:', campaignId);
+      console.log('Google Account ID:', googleAccountId);
+      console.log('Customer ID:', customerId);
+    }
+  }, [sa360AssetsLoading, campaignId, googleAccountId, customerId]);
+
+  // Use campaign report data directly
+  const campaignData = useMemo(() => {
+    if (!sa360CampaignReport?.result?.campaign) return null;
+    return sa360CampaignReport.result.campaign; // Get campaign data directly
+  }, [sa360CampaignReport]);
+
+  // Prepare chart data for the specific campaign
+  const chartData = useMemo(() => {
+    if (!campaignData || !sa360CampaignReport?.result?.performance) return {};
+
+    // Use actual performance data from the API response
+    const performance = sa360CampaignReport.result.performance.overview || {};
+    
+    // Performance metrics data
+    const performanceData = [
+      { name: 'Impressions', value: performance.impressions || 0 },
+      { name: 'Clicks', value: performance.clicks || 0 },
+      { name: 'Conversions', value: performance.conversions || 0 },
+      { name: 'Cost', value: performance.cost || 0 }
+    ];
+
+    // Financial metrics data
+    const financialData = [
+      { name: 'Cost', value: performance.cost || 0 },
+      { name: 'Conversions Value', value: performance.conversions_value || 0 },
+      { name: 'Average CPC', value: performance.average_cpc || 0 },
+      { name: 'Average CPM', value: performance.average_cpm || 0 }
+    ];
+
+    // Engagement metrics data
+    const engagementData = [
+      { name: 'CTR', value: (performance.ctr || 0) * 100 },
+      { name: 'Conversion Rate', value: performance.clicks > 0 ? (performance.conversions / performance.clicks) * 100 : 0 },
+      { name: 'ROAS', value: performance.cost > 0 ? (performance.conversions_value / performance.cost) : 0 }
+    ];
+
+    // Time series data (simulated for demo)
+    const timeSeriesData = [
+      { name: 'Day 1', impressions: Math.floor((performance.impressions || 0) * 0.1), clicks: Math.floor((performance.clicks || 0) * 0.1), cost: (performance.cost || 0) * 0.1 },
+      { name: 'Day 2', impressions: Math.floor((performance.impressions || 0) * 0.15), clicks: Math.floor((performance.clicks || 0) * 0.15), cost: (performance.cost || 0) * 0.15 },
+      { name: 'Day 3', impressions: Math.floor((performance.impressions || 0) * 0.12), clicks: Math.floor((performance.clicks || 0) * 0.12), cost: (performance.cost || 0) * 0.12 },
+      { name: 'Day 4', impressions: Math.floor((performance.impressions || 0) * 0.18), clicks: Math.floor((performance.clicks || 0) * 0.18), cost: (performance.cost || 0) * 0.18 },
+      { name: 'Day 5', impressions: Math.floor((performance.impressions || 0) * 0.14), clicks: Math.floor((performance.clicks || 0) * 0.14), cost: (performance.cost || 0) * 0.14 },
+      { name: 'Day 6', impressions: Math.floor((performance.impressions || 0) * 0.16), clicks: Math.floor((performance.clicks || 0) * 0.16), cost: (performance.cost || 0) * 0.16 },
+      { name: 'Day 7', impressions: Math.floor((performance.impressions || 0) * 0.15), clicks: Math.floor((performance.clicks || 0) * 0.15), cost: (performance.cost || 0) * 0.15 }
+    ];
+
+    return {
+      performanceData,
+      financialData,
+      engagementData,
+      timeSeriesData
+    };
+  }, [campaignData, sa360CampaignReport]);
+
+  // Calculate performance summary
+  const performanceSummary = useMemo(() => {
+    if (!campaignData || !sa360CampaignReport?.result?.performance) return null;
+    
+    // Use actual performance data from the API response
+    const perf = sa360CampaignReport.result.performance.overview || {};
+    return {
+      totalImpressions: perf.impressions || 0,
+      totalClicks: perf.clicks || 0,
+      totalCost: perf.cost || 0,
+      totalConversions: perf.conversions || 0,
+      totalConversionValue: perf.conversions_value || 0,
+      averageCPC: perf.average_cpc || 0,
+      averageCPM: perf.average_cpm || 0,
+      ctr: perf.ctr || 0,
+      roas: perf.cost > 0 ? (perf.conversions_value / perf.cost) : 0,
+      conversionRate: perf.clicks > 0 ? (perf.conversions / perf.clicks) : 0
+    };
+  }, [campaignData, sa360CampaignReport]);
+
+  // Demographic data processing
+  const demographicData = useMemo(() => {
+    if (!sa360DemographicData?.result?.demographic_data?.[0]) return null;
+    return sa360DemographicData.result.demographic_data[0];
+  }, [sa360DemographicData]);
+
+  // Demographic chart data
+  const demographicChartData = useMemo(() => {
+    if (!demographicData?.gender_breakdown) return [];
+    
+    return demographicData.gender_breakdown.map(item => ({
+      name: item.gender,
+      impressions: item.impressions,
+      clicks: item.clicks,
+      cost: item.cost,
+      conversions: item.conversions,
+      conversions_value: item.conversions_value,
+      ctr: item.ctr,
+      cpc: item.cpc
+    }));
+  }, [demographicData]);
+
+  // Daily demographic data
+  const dailyDemographicData = useMemo(() => {
+    if (!demographicData?.daily_data) return [];
+    
+    return demographicData.daily_data.map(item => ({
+      name: item.date,
+      impressions: item.impressions,
+      clicks: item.clicks,
+      cost: item.cost,
+      conversions: item.conversions,
+      conversions_value: item.conversions_value,
+      ctr: item.ctr,
+      average_cpc: item.average_cpc
+    }));
+  }, [demographicData]);
+
+  // Device targeting data processing
+  const deviceTargetingData = useMemo(() => {
+    if (!sa360DeviceTargeting?.result?.device_targeting_data) return null;
+    return sa360DeviceTargeting.result.device_targeting_data;
+  }, [sa360DeviceTargeting]);
+
+  // Device targeting chart data
+  const deviceChartData = useMemo(() => {
+    if (!deviceTargetingData) return [];
+    
+    return deviceTargetingData.map(item => ({
+      name: item.device,
+      impressions: item.impressions,
+      clicks: item.clicks,
+      cost: item.cost,
+      conversions: item.conversions,
+      conversions_value: item.conversions_value,
+      ctr: item.ctr,
+      average_cpc: item.average_cpc,
+      all_conversions: item.all_conversions,
+      all_conversions_value: item.all_conversions_value
+    }));
+  }, [deviceTargetingData]);
+
+  // Audience targeting data processing
+  const audienceTargetingData = useMemo(() => {
+    if (!sa360AudienceTargeting?.result?.targeting_data) return null;
+    return sa360AudienceTargeting.result.targeting_data;
+  }, [sa360AudienceTargeting]);
+
+  // Audience targeting chart data for monthly trends - show whole year with 0 for missing months
+  const audienceChartData = useMemo(() => {
+    const months = [
+      'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+      'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+    ];
+    
+    // Create a map of existing data
+    const dataMap = new Map();
+    if (audienceTargetingData) {
+      audienceTargetingData.forEach(item => {
+        dataMap.set(item.month, item.performance);
+      });
+    }
+    
+    // Generate data for all 12 months
+    return months.map(month => {
+      const monthData = dataMap.get(month);
+      return {
+        name: month,
+        impressions: monthData?.impressions || 0,
+        clicks: monthData?.clicks || 0,
+        cost: monthData?.cost || 0,
+        conversions: monthData?.conversions || 0,
+        conversions_value: monthData?.conversions_value || 0,
+        ctr: monthData?.ctr || 0,
+        average_cpc: monthData?.average_cpc || 0,
+        all_conversions: monthData?.all_conversions || 0,
+        all_conversions_value: monthData?.all_conversions_value || 0
+      };
+    });
+  }, [audienceTargetingData]);
+
+  // Assets data processing
+  const assetsData = useMemo(() => {
+    if (!sa360Assets?.result?.campaigns?.[campaignId]?.assets) return null;
+    return sa360Assets.result.campaigns[campaignId];
+  }, [sa360Assets, campaignId]);
+
+  // Assets chart data
+  const assetsChartData = useMemo(() => {
+    if (!assetsData?.assets) return [];
+    
+    return assetsData.assets.map(asset => ({
+      name: asset.asset_name || `Asset ${asset.asset_id}`,
+      asset_id: asset.asset_id,
+      asset_type: asset.asset_type,
+      status: asset.campaign_asset_status,
+      impressions: asset.metrics?.impressions || 0,
+      clicks: asset.metrics?.clicks || 0,
+      conversions: asset.metrics?.conversions || 0,
+      cost: asset.metrics?.average_cost || 0,
+      ctr: asset.metrics?.interaction_rate || 0,
+      average_cpc: asset.metrics?.average_cpc || 0,
+      video_views: asset.metrics?.video_views || 0,
+      video_view_rate: asset.metrics?.video_view_rate || 0,
+      interactions: asset.metrics?.interactions || 0
+    }));
+  }, [assetsData]);
+
+  // Assets summary data
+  const assetsSummary = useMemo(() => {
+    if (!assetsData?.summary) return null;
+    return assetsData.summary;
+  }, [assetsData]);
+
+  // Tab Components
+  const OverviewTab = () => (
+    <div className="space-y-8">
+      {/* Performance Summary Cards */}
+      {performanceSummary && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Impressions</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {performanceSummary.totalImpressions.toLocaleString()}
+                </p>
+              </div>
+              <EyeIcon className="h-8 w-8 text-blue-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clicks</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {performanceSummary.totalClicks.toLocaleString()}
+                </p>
+              </div>
+              <CursorArrowRaysIcon className="h-8 w-8 text-green-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${performanceSummary.totalCost.toFixed(2)}
+                </p>
+              </div>
+              <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {performanceSummary.totalConversions.toLocaleString()}
+                </p>
+              </div>
+              <ShoppingCartIcon className="h-8 w-8 text-purple-500" />
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Additional Performance Metrics */}
+      {performanceSummary && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">CTR</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {(performanceSummary.ctr * 100).toFixed(2)}%
+                </p>
+              </div>
+              <ChartBarIcon className="h-8 w-8 text-indigo-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg CPC</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${performanceSummary.averageCPC.toFixed(2)}
+                </p>
+              </div>
+              <CreditCardIcon className="h-8 w-8 text-orange-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">ROAS</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {performanceSummary.roas.toFixed(2)}x
+                </p>
+              </div>
+              <ArrowTrendingUpIcon className="h-8 w-8 text-emerald-500" />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Conv. Rate</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {(performanceSummary.conversionRate * 100).toFixed(2)}%
+                </p>
+              </div>
+              <UserIcon className="h-8 w-8 text-pink-500" />
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+              {/* Charts Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-8"
+        >
+          {/* Performance Metrics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard
+              title="Performance Metrics"
+              subtitle="Key performance indicators"
+              data={chartData.performanceData}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Financial Metrics"
+              subtitle="Cost and revenue analysis"
+              data={chartData.financialData}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+          </div>
+
+          {/* Engagement Metrics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard
+              title="Engagement Metrics"
+              subtitle="CTR, conversion rate, and ROAS"
+              data={chartData.engagementData}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Performance Trends"
+              subtitle="Impressions, clicks, and cost over time"
+              data={chartData.timeSeriesData}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </div>
+
+          {/* Audience Targeting Monthly Trends */}
+          {audienceChartData.length > 0 && (
+            <div className="grid grid-cols-1 gap-6">
+              <ChartCard
+                title="Audience Targeting Monthly Performance"
+                subtitle="Monthly trends for audience targeting performance"
+                data={audienceChartData.map(item => ({
+                  name: item.name,
+                  impressions: item.impressions,
+                  clicks: item.clicks,
+                  cost: item.cost,
+                  conversions: item.conversions
+                }))}
+                type="line"
+                height={400}
+                gradient={true}
+                multiLine={true}
+              />
+            </div>
+          )}
+
+          {/* Area Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartCard
+              title="Performance Area Chart"
+              subtitle="Performance metrics with gradient area fills"
+              data={chartData.timeSeriesData}
+              type="area"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+            
+            <ChartCard
+              title="Financial Area Chart"
+              subtitle="Cost trends with gradient area fills"
+              data={chartData.timeSeriesData.map(item => ({
+                name: item.name,
+                cost: item.cost
+              }))}
+              type="area"
+              height={300}
+              gradient={true}
+            />
+          </div>
+        </motion.div>
+
+        {/* Assets Summary Section */}
+        {sa360Assets?.result?.overall_summary && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Campaign Assets Overview</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Overall performance summary of campaign assets
+              </p>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_campaigns?.toLocaleString() || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Campaigns</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_assets_processed?.toLocaleString() || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Assets Processed</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_impressions?.toLocaleString() || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Impressions</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_clicks?.toLocaleString() || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Clicks</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_conversions?.toLocaleString() || 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Conversions</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ${(sa360Assets.result.overall_summary.total_cost || 0).toFixed(2)}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_clicks > 0 
+                      ? ((sa360Assets.result.overall_summary.total_conversions / sa360Assets.result.overall_summary.total_clicks) * 100).toFixed(2)
+                      : 0}%
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Conversion Rate</p>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360Assets.result.overall_summary.total_cost > 0 
+                      ? (sa360Assets.result.overall_summary.total_conversions / sa360Assets.result.overall_summary.total_cost).toFixed(2)
+                      : 0}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">ROAS</p>
+                </div>
+              </div>
+            </div>
+                    </motion.div>
+        )}
+
+        {/* Google Account Information */}
+        {sa360Assets?.result?.google_account && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Google Account Information</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Account details from assets API
+              </p>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Account ID</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {sa360Assets.result.google_account.id}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Account Name</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {sa360Assets.result.google_account.name}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Email</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {sa360Assets.result.google_account.email}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Campaign Details Table */}
+       <motion.div
+         initial={{ opacity: 0, y: 20 }}
+         animate={{ opacity: 1, y: 0 }}
+         className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+       >
+         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Campaign Details</h3>
+         </div>
+         
+         <div className="overflow-x-auto">
+           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+               <tr>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                   Campaign ID
+                 </td>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                   {campaignData.id}
+                 </td>
+               </tr>
+               <tr>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                   Campaign Name
+                 </td>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                   {campaignData.name}
+                 </td>
+               </tr>
+               <tr>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                   Status
+                 </td>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                     campaignData.status === 'ENABLED' 
+                       ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                       : campaignData.status === 'PAUSED'
+                       ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                       : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                   }`}>
+                     {campaignData.status}
+                   </span>
+                 </td>
+               </tr>
+               <tr>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                   Channel Type
+                 </td>
+                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                     campaignData.advertising_channel_type === 'SEARCH' 
+                       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                       : campaignData.advertising_channel_type === 'DISPLAY'
+                       ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                       : campaignData.advertising_channel_type === 'VIDEO'
+                       ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400'
+                       : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
+                   }`}>
+                     {campaignData.advertising_channel_type}
+                   </span>
+                 </td>
+               </tr>
+               {campaignData.advertising_channel_sub_type && (
+                 <tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                     Channel Sub Type
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                     {campaignData.advertising_channel_sub_type}
+                   </td>
+                 </tr>
+               )}
+               {campaignData.bidding_strategy_type && (
+                 <tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                     Bidding Strategy
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                     {campaignData.bidding_strategy_type}
+                   </td>
+                 </tr>
+               )}
+               {campaignData.start_date && (
+                 <tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                     Start Date
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                     {campaignData.start_date}
+                   </td>
+                 </tr>
+               )}
+               {campaignData.end_date && (
+                 <tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                     End Date
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                     {campaignData.end_date}
+                   </td>
+                 </tr>
+               )}
+               {campaignData.budget && (
+                 <tr>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                     Budget
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                     {campaignData.budget.amount} {sa360CampaignReport?.result?.currency?.code} ({campaignData.budget.delivery_method})
+                   </td>
+                 </tr>
+               )}
+              {sa360CampaignReport?.result?.currency && (
+                <tr>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    Currency
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {sa360CampaignReport.result.currency.code} ({sa360CampaignReport.result.currency.name})
+                  </td>
+                </tr>
+              )}
+              {sa360CampaignReport?.result?.date_range && (
+                <tr>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    Date Range
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {sa360CampaignReport.result.date_range.from} to {sa360CampaignReport.result.date_range.to}
+                  </td>
+                </tr>
+              )}
+              {sa360CampaignReport?.result?.google_account && (
+                <tr>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    Google Account
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {sa360CampaignReport.result.google_account.name} ({sa360CampaignReport.result.google_account.email})
+                  </td>
+                </tr>
+              )}
+              {sa360CampaignReport?.result?.customer && (
+                <tr>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    Customer
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {sa360CampaignReport.result.customer.descriptive_name} (ID: {sa360CampaignReport.result.customer.id})
+                  </td>
+                </tr>
+              )}
+             </tbody>
+           </table>
+         </div>
+       </motion.div>
+
+               {/* Performance Metrics Table */}
+        {sa360CampaignReport?.result?.performance && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Performance Metrics</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {/* Overview Metrics */}
+                  {sa360CampaignReport.result.performance.overview && (
+                    <>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Impressions
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.overview.impressions?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Clicks
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.overview.clicks?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Cost
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.overview.cost?.toFixed(2) || 0} {sa360CampaignReport.result.currency?.code}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Conversions
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.overview.conversions?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          CTR
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {((sa360CampaignReport.result.performance.overview.ctr || 0) * 100).toFixed(2)}%
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Average CPC
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {(sa360CampaignReport.result.performance.overview.average_cpc || 0).toFixed(2)} {sa360CampaignReport.result.currency?.code}
+                        </td>
+                      </tr>
+                    </>
+                  )}
+
+                  {/* Video Metrics */}
+                  {sa360CampaignReport.result.performance.video_metrics && (
+                    <>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Video Views
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.video_metrics.video_views?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Video View Rate
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {((sa360CampaignReport.result.performance.video_metrics.video_view_rate || 0) * 100).toFixed(2)}%
+                        </td>
+                      </tr>
+                    </>
+                  )}
+
+                  {/* Engagement Metrics */}
+                  {sa360CampaignReport.result.performance.engagement_metrics && (
+                    <>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Interactions
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {sa360CampaignReport.result.performance.engagement_metrics.interactions?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          Interaction Rate
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {((sa360CampaignReport.result.performance.engagement_metrics.interaction_rate || 0) * 100).toFixed(2)}%
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
+                 {/* Audience Targeting Data Table */}
+         {audienceChartData.length > 0 && (
+           <motion.div
+             initial={{ opacity: 0, y: 20 }}
+             animate={{ opacity: 1, y: 0 }}
+             className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+           >
+             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Audience Targeting Performance (Full Year)</h3>
+             </div>
+             
+             <div className="overflow-x-auto">
+               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                 <thead className="bg-gray-50 dark:bg-gray-700">
+                   <tr>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Month</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cost</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CTR</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPC</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conv. Value</th>
+                   </tr>
+                 </thead>
+                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                   {audienceChartData.map((item, index) => (
+                     <tr key={index} className={item.impressions === 0 ? 'bg-gray-50 dark:bg-gray-700/50' : ''}>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.conversions_value.toFixed(2)}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           </motion.div>
+         )}
+     </div>
+   );
+
+  const DemographicsTab = () => (
+    <div className="space-y-8">
+      {demographicData ? (
+        <>
+          {/* Summary Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Impressions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {demographicData.total_impressions?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <EyeIcon className="h-8 w-8 text-blue-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clicks</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {demographicData.total_clicks?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <CursorArrowRaysIcon className="h-8 w-8 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ${demographicData.total_cost?.toFixed(2) || 0}
+                  </p>
+                </div>
+                <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {demographicData.total_conversions?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <ShoppingCartIcon className="h-8 w-8 text-purple-500" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Gender Breakdown Charts */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Gender Performance"
+              subtitle="Performance by gender"
+              data={demographicChartData.map(item => ({
+                name: item.name,
+                value: item.impressions
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Gender Cost Analysis"
+              subtitle="Cost and conversions by gender"
+              data={demographicChartData.map(item => ({
+                name: item.name,
+                cost: item.cost,
+                conversions: item.conversions
+              }))}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+
+          {/* Daily Trends */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <ChartCard
+              title="Daily Demographic Trends"
+              subtitle="Performance trends over time"
+              data={dailyDemographicData.map(item => ({
+                name: item.name,
+                impressions: item.impressions,
+                clicks: item.clicks,
+                cost: item.cost
+              }))}
+              type="area"
+              height={400}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+
+          {/* Gender Breakdown Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Gender Breakdown</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Gender</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cost</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CTR</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPC</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {demographicChartData.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cpc.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        </>
+      ) : (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Demographic data not available
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                No demographic data available for this campaign.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+
+
+  const DevicesTab = () => (
+    <div className="space-y-8">
+      {deviceTargetingData ? (
+        <>
+          {/* Summary Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Impressions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {deviceTargetingData.reduce((sum, device) => sum + (device.impressions || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+                <EyeIcon className="h-8 w-8 text-blue-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clicks</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {deviceTargetingData.reduce((sum, device) => sum + (device.clicks || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+                <CursorArrowRaysIcon className="h-8 w-8 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    ${deviceTargetingData.reduce((sum, device) => sum + (device.cost || 0), 0).toFixed(2)}
+                  </p>
+                </div>
+                <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {deviceTargetingData.reduce((sum, device) => sum + (device.conversions || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+                <ShoppingCartIcon className="h-8 w-8 text-purple-500" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Device Performance Charts */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Device Performance"
+              subtitle="Performance by device type"
+              data={deviceChartData.map(item => ({
+                name: item.name,
+                value: item.impressions
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Device Cost Analysis"
+              subtitle="Cost and conversions by device"
+              data={deviceChartData.map(item => ({
+                name: item.name,
+                cost: item.cost,
+                conversions: item.conversions
+              }))}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+
+          {/* Device Performance Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Device Performance Breakdown</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cost</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CTR</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPC</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conv. Value</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {deviceChartData.map((item, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.conversions_value.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+
+          {/* Device Insights */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Device CTR Comparison"
+              subtitle="Click-through rates by device"
+              data={deviceChartData.map(item => ({
+                name: item.name,
+                value: item.ctr
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Device Conversion Analysis"
+              subtitle="Conversion rates and values by device"
+              data={deviceChartData.map(item => ({
+                name: item.name,
+                conversions: item.conversions,
+                conversions_value: item.conversions_value
+              }))}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+        </>
+      ) : (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Device targeting data not available
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                No device targeting data available for this campaign.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const AssetsTab = () => (
+    <div className="space-y-8">
+      {assetsData ? (
+        <>
+          {/* Summary Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Assets</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {assetsSummary?.total_assets?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <PhotoIcon className="h-8 w-8 text-blue-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Impressions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {assetsSummary?.total_impressions?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <EyeIcon className="h-8 w-8 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clicks</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {assetsSummary?.total_clicks?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <CursorArrowRaysIcon className="h-8 w-8 text-yellow-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {assetsSummary?.total_conversions?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <ShoppingCartIcon className="h-8 w-8 text-purple-500" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Assets Performance Charts */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Assets Performance"
+              subtitle="Performance by asset"
+              data={assetsChartData.map(item => ({
+                name: item.name,
+                value: item.impressions
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Assets Cost Analysis"
+              subtitle="Cost and conversions by asset"
+              data={assetsChartData.map(item => ({
+                name: item.name,
+                cost: item.cost,
+                conversions: item.conversions
+              }))}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+
+          {/* Assets Performance Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Assets Performance Breakdown</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Asset</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CTR</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPC</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Video Views</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {assetsChartData.map((item, index) => (
+                    <tr key={index} className={item.impressions === 0 ? 'bg-gray-50 dark:bg-gray-700/50' : ''}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {item.name}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">ID: {item.asset_id}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          item.asset_type === 'SITELINK' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                            : item.asset_type === 'IMAGE'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : item.asset_type === 'VIDEO'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                        }`}>
+                          {item.asset_type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          item.status === 'ENABLED' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : item.status === 'PAUSED'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{(item.ctr * 100).toFixed(2)}%</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.video_views.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+
+          {/* Assets Insights */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Assets CTR Comparison"
+              subtitle="Click-through rates by asset"
+              data={assetsChartData.map(item => ({
+                name: item.name,
+                value: item.ctr * 100
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+            
+            <ChartCard
+              title="Assets Video Performance"
+              subtitle="Video views and interaction rates by asset"
+              data={assetsChartData.map(item => ({
+                name: item.name,
+                video_views: item.video_views,
+                interactions: item.interactions
+              }))}
+              type="line"
+              height={300}
+              gradient={true}
+              multiLine={true}
+            />
+          </motion.div>
+
+          {/* Asset Type Breakdown */}
+          {assetsSummary?.by_asset_type && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Asset Type Breakdown</h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Asset Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Count</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {Object.entries(assetsSummary.by_asset_type).map(([assetType, data]) => (
+                      <tr key={assetType}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            assetType === 'SITELINK' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                              : assetType === 'IMAGE'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                              : assetType === 'VIDEO'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                          }`}>
+                            {assetType}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.count}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.impressions.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.clicks.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.conversions.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+        </>
+      ) : (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Assets data not available
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                No assets data available for this campaign.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+
+
+  // Render tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return <OverviewTab />;
+      case 'demographics':
+        return <DemographicsTab />;
+      case 'devices':
+        return <DevicesTab />;
+      case 'assets':
+        return <AssetsTab />;
+      default:
+        return <OverviewTab />;
+    }
+  };
+
+  if (sa360CampaignReportLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sa360CampaignReportError) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="flex">
+              <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Error loading campaign report data
+                </h3>
+                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                  {sa360CampaignReportError}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!campaignData) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex">
+              <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Campaign report data not available
+                </h3>
+                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  No campaign report data available for campaign ID {campaignId}.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              >
+                <ArrowLeftIcon className="h-6 w-6" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {campaignData.name}
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Campaign ID: {campaignData.id}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                campaignData.status === 'ENABLED' 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                  : campaignData.status === 'PAUSED'
+                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+              }`}>
+                {campaignData.status === 'ENABLED' && <PlayIcon className="h-3 w-3 mr-1" />}
+                {campaignData.status === 'PAUSED' && <PauseIcon className="h-3 w-3 mr-1" />}
+                {campaignData.status === 'REMOVED' && <ExclamationTriangleIcon className="h-3 w-3 mr-1" />}
+                {campaignData.status}
+              </span>
+              
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                campaignData.advertising_channel_type === 'SEARCH' 
+                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                  : campaignData.advertising_channel_type === 'DISPLAY'
+                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                  : campaignData.advertising_channel_type === 'VIDEO'
+                  ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400'
+                  : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
+              }`}>
+                {campaignData.advertising_channel_type}
+              </span>
+            </div>
+          </div>
+
+          {/* Date Range Selector */}
+          <div className="flex items-center space-x-4 bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-2">
+              <CalendarIcon className="h-5 w-5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {dateRangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => updateDateRange(option.value)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    (new Date().getTime() - new Date(dateRange.date_from).getTime()) / (1000 * 60 * 60 * 24) === option.value
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {dateRange.date_from} to {dateRange.date_to}
+              </span>
+              
+              <button
+                onClick={() => setShowCustomDatePicker(!showCustomDatePicker)}
+                className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Custom
+              </button>
+            </div>
+          </div>
+
+          {/* Custom Date Picker */}
+          {showCustomDatePicker && (
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">From:</label>
+                  <input
+                    type="date"
+                    value={customFromDate}
+                    onChange={(e) => setCustomFromDate(e.target.value)}
+                    className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">To:</label>
+                  <input
+                    type="date"
+                    value={customToDate}
+                    onChange={(e) => setCustomToDate(e.target.value)}
+                    className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setCustomDateRange(customFromDate, customToDate);
+                    setShowCustomDatePicker(false);
+                  }}
+                  className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Apply
+                </button>
+                
+                <button
+                  onClick={() => setShowCustomDatePicker(false)}
+                  className="px-3 py-1 text-xs font-medium bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Tabs Navigation */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                    } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{tab.name}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </motion.div>
+
+        {/* Tab Content */}
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          {renderTabContent()}
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default SA360CampaignDetail;
+

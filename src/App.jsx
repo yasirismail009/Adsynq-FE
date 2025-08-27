@@ -5,6 +5,9 @@ import Layout from './components/layout/Layout';
 import Dashboard from './components/dashboard/Dashboard';
 import IntegrationsPage from './components/integrations/IntegrationsPage';
 import PlatformDashboard from './components/integrations/PlatformDashboard';
+import GoogleDashboard from './components/integrations/GoogleDashboard';
+import GoogleAccountDetail from './components/integrations/GoogleAccountDetail';
+import SA360CampaignDetail from './components/integrations/SA360CampaignDetail';
 import FacebookDashboard from './components/integrations/FacebookDashboard';
 import AdAccountDetail from './components/integrations/AdAccountDetail';
 import CampaignDetail from './components/integrations/CampaignDetail';
@@ -161,6 +164,25 @@ function App() {
             <Route path="/platform/:platformId" element={
               <ProtectedRoute>
                 <Layout><PlatformDashboard /></Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/google" element={
+              <ProtectedRoute>
+                <Layout><GoogleDashboard /></Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/google/ad-account/:accountId" element={
+              <ProtectedRoute>
+                <Layout><GoogleAccountDetail /></Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/google/sa360/campaign/:googleAccountId/:customerId/:campaignId" element={
+              <ProtectedRoute>
+                <Layout>
+                  <ErrorBoundary>
+                    <SA360CampaignDetail />
+                  </ErrorBoundary>
+                </Layout>
               </ProtectedRoute>
             } />
             <Route path="/facebook/:platformId" element={

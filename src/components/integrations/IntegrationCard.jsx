@@ -37,7 +37,8 @@ const IntegrationCard = ({
   onConnect,
   onDisconnect,
   isConnecting = false,
-  isDisconnecting = false
+  isDisconnecting = false,
+  isNavigating = false
 }) => {
   // Shopify domain input state
   const [showShopifyInput, setShowShopifyInput] = useState(false);
@@ -397,7 +398,7 @@ const IntegrationCard = ({
         {isConnected ? (
           <div className="flex gap-2">
             <a
-              href={primaryPlatform?.type === 'meta' ? `/facebook/${id}` : `/platform/${id}`}
+              href={primaryPlatform?.type === 'google' ? '/google' : primaryPlatform?.type === 'meta' ? `/facebook/${id}` : `/platform/${id}`}
               className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-semibold bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors"
             >
               <ChartBarIcon className="w-4 h-4" />
@@ -405,11 +406,15 @@ const IntegrationCard = ({
             </a>
             <button
               onClick={onView}
-              disabled={isConnecting || isDisconnecting}
+              disabled={isConnecting || isDisconnecting || isNavigating}
               className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <EyeIcon className="w-4 h-4" />
-              View
+              {isNavigating ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+              ) : (
+                <EyeIcon className="w-4 h-4" />
+              )}
+              {isNavigating ? 'Navigating...' : 'View'}
             </button>
             <button
               onClick={onDisconnect}

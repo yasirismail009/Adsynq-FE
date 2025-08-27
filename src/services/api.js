@@ -219,7 +219,17 @@ export const apiService = {
     googleDisconnect: (accountId) => axiosPrivate.post(`/marketing/google/disconnect/${accountId}/`),
     googleRefreshTokens: () => axiosPrivate.post(`/marketing/google/refresh-token/`),
     googleAccountData: (accountId) => axiosPrivate.get(`/marketing/google/account/${accountId}/`),
-    googleOverallStats: (params) => axiosPrivate.get('/marketing/sa360/overall-stats/', { params }),
+    googleOverallStats: (params) => axiosPrivate.get('/marketing/sa360/overall-stats/', { 
+      params,
+      timeout: 120000 // 2 minutes timeout for SA360 overall stats
+    }),
+    googleSa360Reports: (googleAccountId, customerId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/reports/`, { params }),
+    googleSa360CampaignReport: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/details/`, { params }),
+    googleSa360KeywordView: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/keyword-view/`, { params }),
+    googleSa360DemographicData: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/demographic-data/`, { params }),
+    googleSa360DeviceTargeting: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/device-targeting/`, { params }),
+    googleSa360AudienceTargeting: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/audience-targeting/`, { params }),
+    googleSa360Assets: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/assets/`, { params }),
     metaConnect: (data) => axiosPrivate.post('/meta/connect/', data),
     metaDisconnect: (accountId) => axiosPrivate.post(`/meta/disconnect/${accountId}/`),
     metaRefreshTokens: (accountId) => axiosPrivate.post(`/meta/refresh-tokens/${accountId}/`),

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Squares2X2Icon, 
   ListBulletIcon,
@@ -24,6 +25,7 @@ import { useDispatch } from 'react-redux';
 
 
 const IntegrationsPage = () => {
+  const navigate = useNavigate();
   const {
     integrations,
     loading,
@@ -52,6 +54,7 @@ const IntegrationsPage = () => {
   const [oauthData, setOauthData] = useState(null);
   const [oauthError, setOauthError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [navigating, setNavigating] = useState(false);
   
 
   
@@ -391,6 +394,40 @@ const IntegrationsPage = () => {
 
   const handleView = (id) => {
     console.log('View integration:', id);
+    
+    // Set navigating state
+    setNavigating(true);
+    
+    // Find the integration by ID
+    const integration = integrations.find(integ => integ.id === id);
+    if (!integration) {
+      console.error('Integration not found:', id);
+      setNavigating(false);
+      return;
+    }
+    
+    // Get the primary platform type
+    const primaryPlatform = integration.integrations.find(p => p.status === 'active') || integration.integrations[0];
+    const platformType = primaryPlatform?.type || 'google';
+    
+    console.log('Platform type:', platformType);
+    console.log('Integration data:', integration);
+    console.log('Primary platform:', primaryPlatform);
+    
+    // Navigate to appropriate dashboard based on platform type
+    if (platformType === 'google') {
+      console.log('Navigating to Google Dashboard');
+      navigate('/google');
+    } else if (platformType === 'meta') {
+      console.log('Navigating to Facebook Dashboard');
+      navigate(`/facebook/${id}`);
+    } else {
+      console.log('Navigating to Platform Dashboard');
+      navigate(`/platform/${id}`);
+    }
+    
+    // Reset navigating state after a short delay
+    setTimeout(() => setNavigating(false), 1000);
   };
 
   const handleEdit = (id) => {
@@ -902,6 +939,7 @@ const IntegrationsPage = () => {
               onRefreshTokens={() => handleRefreshTokens(integration)}
               isConnecting={isConnecting}
               isDisconnecting={isDisconnecting}
+              isNavigating={navigating}
             />
           );
         })}

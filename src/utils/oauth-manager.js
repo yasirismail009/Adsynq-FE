@@ -153,6 +153,8 @@ export const platformConfigs = {
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || 'mock-google-client-id',
     scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/doubleclicksearch https://www.googleapis.com/auth/admanager',
+    accessType: 'offline',
+    prompt: 'consent',
     get redirectUri() { return getRedirectUri('google'); }
   },
   meta: {
@@ -209,6 +211,12 @@ export const redirectToPlatformAuth = (platform) => {
     response_type: 'code',
     state: platform // Use platform as state for identification
   });
+
+  // Add platform-specific parameters
+  if (platform === 'google') {
+    if (config.accessType) params.append('access_type', config.accessType);
+    if (config.prompt) params.append('prompt', config.prompt);
+  }
 
   const authUrl = `${config.authUrl}?${params.toString()}`;
   window.location.href = authUrl;

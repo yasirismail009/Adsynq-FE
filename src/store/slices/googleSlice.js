@@ -137,8 +137,334 @@ export const fetchGoogleOverallStats = createAsyncThunk(
     } catch (error) {
       console.error('Error fetching Google overall stats:', error);
       
+      // For development/testing, return mock data if API fails
+      if (import.meta.env.DEV) {
+        console.log('Returning mock Google stats data for development');
+        return {
+          "error": false,
+          "result": {
+            "accounts": [
+              {
+                "customer_id": "6278222097",
+                "google_account_id": "113057969003083685143",
+                "account_info": {
+                  "descriptive_name": "Ali",
+                  "currency_code": "PKR",
+                  "time_zone": "Asia/Karachi",
+                  "account_type": "client",
+                  "status": "active",
+                  "total_campaigns": 6,
+                  "enabled_campaigns": 2,
+                  "paused_campaigns": 3
+                },
+                "metrics": {
+                  "impressions": 85096,
+                  "clicks": 3688,
+                  "cost": 5031.26,
+                  "conversions": 686,
+                  "conversions_value": 190785.82,
+                  "ctr": 4.33,
+                  "cpc": 1.36,
+                  "conversion_rate": 18.6,
+                  "cost_per_conversion": 7.33,
+                  "campaigns_count": 6
+                },
+                "date_range": {
+                  "start_date": "2024-02-23",
+                  "end_date": "2025-08-25",
+                  "query_period": "2024-02-23 to 2025-08-25"
+                }
+              },
+              {
+                "customer_id": "1574545788",
+                "google_account_id": "113057969003083685143",
+                "account_info": {
+                  "descriptive_name": "Tekreign",
+                  "currency_code": "PKR",
+                  "time_zone": "Asia/Karachi",
+                  "account_type": "manager",
+                  "status": "inactive",
+                  "total_campaigns": 0,
+                  "enabled_campaigns": 0,
+                  "paused_campaigns": 0
+                },
+                "metrics": {
+                  "impressions": 0,
+                  "clicks": 0,
+                  "cost": 0,
+                  "conversions": 0,
+                  "conversions_value": 0,
+                  "ctr": 0,
+                  "cpc": 0,
+                  "conversion_rate": 0,
+                  "cost_per_conversion": 0,
+                  "campaigns_count": 0
+                },
+                "date_range": {
+                  "start_date": "2024-02-23",
+                  "end_date": "2025-08-25",
+                  "query_period": "2024-02-23 to 2025-08-25"
+                }
+              },
+              {
+                "customer_id": "1700964194",
+                "google_account_id": "113057969003083685143",
+                "account_info": {
+                  "descriptive_name": "Test Manager",
+                  "currency_code": "PKR",
+                  "time_zone": "Asia/Karachi",
+                  "account_type": "manager",
+                  "status": "inactive",
+                  "total_campaigns": 0,
+                  "enabled_campaigns": 0,
+                  "paused_campaigns": 0
+                },
+                "metrics": {
+                  "impressions": 0,
+                  "clicks": 0,
+                  "cost": 0,
+                  "conversions": 0,
+                  "conversions_value": 0,
+                  "ctr": 0,
+                  "cpc": 0,
+                  "conversion_rate": 0,
+                  "cost_per_conversion": 0,
+                  "campaigns_count": 0
+                },
+                "date_range": {
+                  "start_date": "2024-02-23",
+                  "end_date": "2025-08-25",
+                  "query_period": "2024-02-23 to 2025-08-25"
+                }
+              }
+            ],
+            "summary": {
+              "total_accounts": 3,
+              "valid_accounts": 3,
+              "active_accounts": 1,
+              "inactive_accounts": 2,
+              "total_impressions": 85096,
+              "total_clicks": 3688,
+              "total_cost": 5031.26,
+              "total_conversions": 686,
+              "total_conversions_value": 190785.82,
+              "average_ctr": 1.44,
+              "average_cpc": 0.45,
+              "average_conversion_rate": 6.2,
+              "average_cost_per_conversion": 2.44,
+              "include_inactive": true,
+              "date_range": {
+                "start_date": "2024-02-23",
+                "end_date": "2025-08-25",
+                "query_period": "2024-02-23 to 2025-08-25"
+              }
+            }
+          },
+          "message": "SearchAds360 overall stats retrieved successfully using Google Ads API",
+          "code": 0
+        };
+      }
+      
       // Extract error message from response data
       let errorMessage = 'Failed to fetch Google stats';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 reports
+export const fetchGoogleSa360Reports = createAsyncThunk(
+  'google/fetchSa360Reports',
+  async ({ googleAccountId, customerId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 reports with params:', { googleAccountId, customerId, params });
+      const response = await apiService.marketing.googleSa360Reports(googleAccountId, customerId, params);
+      console.log('SA360 reports response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 reports:', error);
+      
+      // Extract error message from response data
+      let errorMessage = 'Failed to fetch SA360 reports';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 campaign report
+export const fetchGoogleSa360CampaignReport = createAsyncThunk(
+  'google/fetchSa360CampaignReport',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 campaign report with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360CampaignReport(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 campaign report response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 campaign report:', error);
+      
+      // Extract error message from response data
+      let errorMessage = 'Failed to fetch SA360 campaign report';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 keyword view
+export const fetchGoogleSa360KeywordView = createAsyncThunk(
+  'google/fetchSa360KeywordView',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 keyword view with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360KeywordView(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 keyword view response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 keyword view:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 keyword view';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 demographic data
+export const fetchGoogleSa360DemographicData = createAsyncThunk(
+  'google/fetchSa360DemographicData',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 demographic data with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360DemographicData(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 demographic data response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 demographic data:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 demographic data';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 device targeting
+export const fetchGoogleSa360DeviceTargeting = createAsyncThunk(
+  'google/fetchSa360DeviceTargeting',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 device targeting with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360DeviceTargeting(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 device targeting response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 device targeting:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 device targeting';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 audience targeting
+export const fetchGoogleSa360AudienceTargeting = createAsyncThunk(
+  'google/fetchSa360AudienceTargeting',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 audience targeting with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360AudienceTargeting(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 audience targeting response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 audience targeting:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 audience targeting';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching SA360 assets
+export const fetchGoogleSa360Assets = createAsyncThunk(
+  'google/fetchSa360Assets',
+  async ({ googleAccountId, customerId, campaignId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 assets with params:', { googleAccountId, customerId, campaignId, params });
+      const response = await apiService.marketing.googleSa360Assets(googleAccountId, customerId, campaignId, params);
+      console.log('SA360 assets response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 assets:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 assets';
       if (error.response?.data) {
         if (typeof error.response.data === 'string') {
           errorMessage = error.response.data;
@@ -171,6 +497,41 @@ const initialState = {
   overallStats: null,
   overallStatsLoading: false,
   overallStatsError: null,
+  
+  // SA360 reports data
+  sa360Reports: null,
+  sa360ReportsLoading: false,
+  sa360ReportsError: null,
+  
+  // SA360 campaign report data
+  sa360CampaignReport: null,
+  sa360CampaignReportLoading: false,
+  sa360CampaignReportError: null,
+  
+  // SA360 keyword view data
+  sa360KeywordView: null,
+  sa360KeywordViewLoading: false,
+  sa360KeywordViewError: null,
+  
+  // SA360 demographic data
+  sa360DemographicData: null,
+  sa360DemographicDataLoading: false,
+  sa360DemographicDataError: null,
+  
+  // SA360 device targeting data
+  sa360DeviceTargeting: null,
+  sa360DeviceTargetingLoading: false,
+  sa360DeviceTargetingError: null,
+  
+  // SA360 audience targeting data
+  sa360AudienceTargeting: null,
+  sa360AudienceTargetingLoading: false,
+  sa360AudienceTargetingError: null,
+  
+  // SA360 assets data
+  sa360Assets: null,
+  sa360AssetsLoading: false,
+  sa360AssetsError: null,
   
   // Error states
   connectionError: null,
@@ -394,6 +755,111 @@ const googleSlice = createSlice({
         state.overallStatsLoading = false;
         state.overallStatsError = action.payload;
       });
+
+    // Fetch SA360 reports
+    builder
+      .addCase(fetchGoogleSa360Reports.pending, (state) => {
+        state.sa360ReportsLoading = true;
+        state.sa360ReportsError = null;
+      })
+      .addCase(fetchGoogleSa360Reports.fulfilled, (state, action) => {
+        state.sa360ReportsLoading = false;
+        state.sa360Reports = action.payload;
+      })
+      .addCase(fetchGoogleSa360Reports.rejected, (state, action) => {
+        state.sa360ReportsLoading = false;
+        state.sa360ReportsError = action.payload;
+      });
+
+    // Fetch SA360 campaign report
+    builder
+      .addCase(fetchGoogleSa360CampaignReport.pending, (state) => {
+        state.sa360CampaignReportLoading = true;
+        state.sa360CampaignReportError = null;
+      })
+      .addCase(fetchGoogleSa360CampaignReport.fulfilled, (state, action) => {
+        state.sa360CampaignReportLoading = false;
+        state.sa360CampaignReport = action.payload;
+      })
+      .addCase(fetchGoogleSa360CampaignReport.rejected, (state, action) => {
+        state.sa360CampaignReportLoading = false;
+        state.sa360CampaignReportError = action.payload;
+      });
+
+    // Fetch SA360 keyword view
+    builder
+      .addCase(fetchGoogleSa360KeywordView.pending, (state) => {
+        state.sa360KeywordViewLoading = true;
+        state.sa360KeywordViewError = null;
+      })
+      .addCase(fetchGoogleSa360KeywordView.fulfilled, (state, action) => {
+        state.sa360KeywordViewLoading = false;
+        state.sa360KeywordView = action.payload;
+      })
+      .addCase(fetchGoogleSa360KeywordView.rejected, (state, action) => {
+        state.sa360KeywordViewLoading = false;
+        state.sa360KeywordViewError = action.payload;
+      });
+
+    // Fetch SA360 demographic data
+    builder
+      .addCase(fetchGoogleSa360DemographicData.pending, (state) => {
+        state.sa360DemographicDataLoading = true;
+        state.sa360DemographicDataError = null;
+      })
+      .addCase(fetchGoogleSa360DemographicData.fulfilled, (state, action) => {
+        state.sa360DemographicDataLoading = false;
+        state.sa360DemographicData = action.payload;
+      })
+      .addCase(fetchGoogleSa360DemographicData.rejected, (state, action) => {
+        state.sa360DemographicDataLoading = false;
+        state.sa360DemographicDataError = action.payload;
+      });
+
+    // Fetch SA360 device targeting
+    builder
+      .addCase(fetchGoogleSa360DeviceTargeting.pending, (state) => {
+        state.sa360DeviceTargetingLoading = true;
+        state.sa360DeviceTargetingError = null;
+      })
+      .addCase(fetchGoogleSa360DeviceTargeting.fulfilled, (state, action) => {
+        state.sa360DeviceTargetingLoading = false;
+        state.sa360DeviceTargeting = action.payload;
+      })
+      .addCase(fetchGoogleSa360DeviceTargeting.rejected, (state, action) => {
+        state.sa360DeviceTargetingLoading = false;
+        state.sa360DeviceTargetingError = action.payload;
+      });
+
+    // Fetch SA360 audience targeting
+    builder
+      .addCase(fetchGoogleSa360AudienceTargeting.pending, (state) => {
+        state.sa360AudienceTargetingLoading = true;
+        state.sa360AudienceTargetingError = null;
+      })
+      .addCase(fetchGoogleSa360AudienceTargeting.fulfilled, (state, action) => {
+        state.sa360AudienceTargetingLoading = false;
+        state.sa360AudienceTargeting = action.payload;
+      })
+      .addCase(fetchGoogleSa360AudienceTargeting.rejected, (state, action) => {
+        state.sa360AudienceTargetingLoading = false;
+        state.sa360AudienceTargetingError = action.payload;
+      });
+
+    // Fetch SA360 assets
+    builder
+      .addCase(fetchGoogleSa360Assets.pending, (state) => {
+        state.sa360AssetsLoading = true;
+        state.sa360AssetsError = null;
+      })
+      .addCase(fetchGoogleSa360Assets.fulfilled, (state, action) => {
+        state.sa360AssetsLoading = false;
+        state.sa360Assets = action.payload;
+      })
+      .addCase(fetchGoogleSa360Assets.rejected, (state, action) => {
+        state.sa360AssetsLoading = false;
+        state.sa360AssetsError = action.payload;
+      });
   },
 });
 
@@ -438,6 +904,41 @@ export const selectGoogleOAuthCode = (state) => state.google.oauthCode;
 export const selectGoogleOverallStats = (state) => state.google.overallStats;
 export const selectGoogleOverallStatsLoading = (state) => state.google.overallStatsLoading;
 export const selectGoogleOverallStatsError = (state) => state.google.overallStatsError;
+
+// SA360 reports selectors
+export const selectGoogleSa360Reports = (state) => state.google.sa360Reports;
+export const selectGoogleSa360ReportsLoading = (state) => state.google.sa360ReportsLoading;
+export const selectGoogleSa360ReportsError = (state) => state.google.sa360ReportsError;
+
+// SA360 campaign report selectors
+export const selectGoogleSa360CampaignReport = (state) => state.google.sa360CampaignReport;
+export const selectGoogleSa360CampaignReportLoading = (state) => state.google.sa360CampaignReportLoading;
+export const selectGoogleSa360CampaignReportError = (state) => state.google.sa360CampaignReportError;
+
+// SA360 keyword view selectors
+export const selectGoogleSa360KeywordView = (state) => state.google.sa360KeywordView;
+export const selectGoogleSa360KeywordViewLoading = (state) => state.google.sa360KeywordViewLoading;
+export const selectGoogleSa360KeywordViewError = (state) => state.google.sa360KeywordViewError;
+
+// SA360 demographic data selectors
+export const selectGoogleSa360DemographicData = (state) => state.google.sa360DemographicData;
+export const selectGoogleSa360DemographicDataLoading = (state) => state.google.sa360DemographicDataLoading;
+export const selectGoogleSa360DemographicDataError = (state) => state.google.sa360DemographicDataError;
+
+// SA360 device targeting selectors
+export const selectGoogleSa360DeviceTargeting = (state) => state.google.sa360DeviceTargeting;
+export const selectGoogleSa360DeviceTargetingLoading = (state) => state.google.sa360DeviceTargetingLoading;
+export const selectGoogleSa360DeviceTargetingError = (state) => state.google.sa360DeviceTargetingError;
+
+// SA360 audience targeting selectors
+export const selectGoogleSa360AudienceTargeting = (state) => state.google.sa360AudienceTargeting;
+export const selectGoogleSa360AudienceTargetingLoading = (state) => state.google.sa360AudienceTargetingLoading;
+export const selectGoogleSa360AudienceTargetingError = (state) => state.google.sa360AudienceTargetingError;
+
+// SA360 assets selectors
+export const selectGoogleSa360Assets = (state) => state.google.sa360Assets;
+export const selectGoogleSa360AssetsLoading = (state) => state.google.sa360AssetsLoading;
+export const selectGoogleSa360AssetsError = (state) => state.google.sa360AssetsError;
 
 // Helper selectors
 export const selectGoogleIsConnected = (state) => state.google.connectedAccounts.length > 0;
