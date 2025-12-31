@@ -171,7 +171,7 @@ function App() {
                 <Layout><GoogleDashboard /></Layout>
               </ProtectedRoute>
             } />
-            <Route path="/google/ad-account/:accountId" element={
+            <Route path="/google/:googleAccountId/ad-account/:accountId" element={
               <ProtectedRoute>
                 <Layout><GoogleAccountDetail /></Layout>
               </ProtectedRoute>
@@ -185,17 +185,17 @@ function App() {
                 </Layout>
               </ProtectedRoute>
             } />
-            <Route path="/facebook/:platformId" element={
+            <Route path="/meta/:platformId" element={
               <ProtectedRoute>
                 <Layout><FacebookDashboard /></Layout>
               </ProtectedRoute>
             } />
-            <Route path="/facebook/ad-account/:accountId" element={
+            <Route path="/meta/ad-account/:accountId" element={
               <ProtectedRoute>
                 <Layout><AdAccountDetail /></Layout>
               </ProtectedRoute>
             } />
-            <Route path="/facebook/campaign/:campaignId" element={
+            <Route path="/meta/campaign/:campaignId" element={
               <ProtectedRoute>
                 <Layout>
                   <ErrorBoundary>
@@ -229,7 +229,7 @@ function App() {
         </Router>
         <Toast />
         {/* Floating theme toggle */}
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 right-6 z-50 rtl:right-auto rtl:left-6">
           <ThemeToggle />
         </div>
       </ThemeProvider>

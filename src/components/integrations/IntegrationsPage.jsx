@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Squares2X2Icon, 
   ListBulletIcon,
@@ -17,14 +18,13 @@ import { fetchGoogleOAuthProfile, extractOAuthParams, validateOAuthParams } from
 import { connectGoogleAccount, refreshGoogleTokens } from '../../store/slices/googleSlice';
 import { fetchFacebookOAuthProfile, extractFacebookOAuthParams, validateFacebookOAuthParams } from '../../utils/facebook-oauth-handler';
 import { connectMetaAccount, refreshMetaTokens } from '../../store/slices/facebookSlice';
-import { extractTikTokOAuthParams, validateTikTokOAuthParams, redirectToTikTokAuth } from '../../utils/tiktok-oauth-handler';
-import { saveTikTokOAuthCode, refreshTikTokTokens } from '../../store/slices/tiktokSlice';
-import { extractShopifyOAuthParams, validateShopifyOAuthParams, redirectToShopifyAuth } from '../../utils/shopify-oauth-handler';
-import { connectShopifyAccount, refreshShopifyTokens } from '../../store/slices/shopifySlice';
+// TikTok and Shopify integrations removed - currently targeting only Google and Meta
 import { useDispatch } from 'react-redux';
+import SA360CampaignAssetsTest from './SA360CampaignAssetsTest';
 
 
 const IntegrationsPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const {
     integrations,
@@ -41,7 +41,6 @@ const IntegrationsPage = () => {
     toggleFiltersVisibility,
     updateViewMode,
     hideBanner,
-    addIntegration,
     editIntegration,
     removeIntegration,
     loadIntegrations
@@ -87,33 +86,6 @@ const IntegrationsPage = () => {
         
         // Clean up URL
         const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      } else if (code && state === 'tiktok') {
-        // Handle TikTok OAuth callback
-        handleTikTokOAuthCallback(code);
-        
-        // Clean up URL
-        const cleanUrl = '/integrations';
-        window.history.replaceState({}, document.title, cleanUrl);
-      } else if (code && state ==='shopify') {
-        // Handle Shopify OAuth callback (New OAuth 2.0 Flow)
-        console.log('🛍️ === SHOPIFY OAUTH CALLBACK DETECTED (TOKEN EXCHANGE) ===');
-        console.log('🛍️ Session Token:', code);
-        console.log('🛍️ Shop:', state);
-        console.log('🛍️ Full URL:', window.location.href);
-        console.log('🛍️ All URL Parameters:');
-        
-        // Log all URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        for (const [key, value] of urlParams.entries()) {
-          console.log(`🛍️   ${key}:`, value);
-        }
-        
-        // In the new OAuth 2.0 flow, 'code' is actually the session token
-        handleShopifyOAuthCallback(code, state);
-        
-        // Clean up URL
-        const cleanUrl = '/integrations';
         window.history.replaceState({}, document.title, cleanUrl);
       } else if (code && state) {
         // Handle other OAuth callbacks (Google, Meta, etc.)
@@ -195,104 +167,7 @@ const IntegrationsPage = () => {
     }
   };
 
-  const handleTikTokOAuthCallback = async (code) => {
-    if (oauthProcessing) {
-      console.log('⚠️ OAuth already in progress, skipping duplicate request');
-      return;
-    }
-
-    console.log('=== handleTikTokOAuthCallback called with code ===', code);
-    setOauthProcessing(true);
-    setOauthError(null);
-    setOauthData(null);
-    
-    try {
-      // Save the OAuth code using Redux slice
-      const saveResult = await dispatch(saveTikTokOAuthCode(code));
-      console.log('saveResult:', saveResult);
-      
-      if (saveTikTokOAuthCode.fulfilled.match(saveResult)) {
-        console.log('TikTok OAuth code saved successfully');
-        setOauthData(saveResult.payload);
-        
-        // Refresh integrations to show the new connection
-        loadIntegrations();
-        
-        // Show success message
-        setSuccess('TikTok account connected successfully!');
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setSuccess(null);
-        }, 5000);
-      } else {
-        console.error('TikTok OAuth code save failed:', saveResult);
-        setOauthError('Failed to save TikTok OAuth code');
-      }
-    } catch (error) {
-      console.error('Error in handleTikTokOAuthCallback:', error);
-      setOauthError(error.message || 'Failed to process TikTok OAuth callback');
-    } finally {
-      setOauthProcessing(false);
-    }
-  };
-
-  const handleShopifyOAuthCallback = async (sessionToken, shop) => {
-    if (oauthProcessing) {
-      console.log('⚠️ OAuth already in progress, skipping duplicate request');
-      return;
-    }
-
-    console.log('🛍️ === HANDLE SHOPIFY OAUTH CALLBACK ===');
-    console.log('🛍️ Received Session Token:', sessionToken);
-    console.log('🛍️ Received Shop:', shop);
-    
-    // Extract all OAuth parameters
-    const allParams = extractShopifyOAuthParams();
-    console.log('🛍️ All extracted parameters:', allParams);
-    
-    setOauthProcessing(true);
-    setOauthError(null);
-    setOauthData(null);
-    
-    try {
-      // Pass all OAuth parameters to backend for processing
-      const oauthParams = {
-        session_token: sessionToken,
-        shop: shop,
-        ...allParams // Include all URL parameters
-      };
-      
-      console.log('🛍️ Dispatching connectShopifyAccount with:', oauthParams);
-      const connectResult = await dispatch(connectShopifyAccount(oauthParams));
-      console.log('🛍️ Connect result:', connectResult);
-      
-      if (connectShopifyAccount.fulfilled.match(connectResult)) {
-        console.log('🛍️ Shopify account connected successfully');
-        console.log('🛍️ Response payload:', connectResult.payload);
-        setOauthData(connectResult.payload);
-        
-        // Refresh integrations to show the new connection
-        loadIntegrations();
-        
-        // Show success message
-        setSuccess('Shopify store connected successfully!');
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setSuccess(null);
-        }, 5000);
-      } else {
-        console.error('🛍️ Shopify account connection failed:', connectResult);
-        setOauthError('Failed to connect Shopify account');
-      }
-    } catch (error) {
-      console.error('🛍️ Error in handleShopifyOAuthCallback:', error);
-      setOauthError(error.message || 'Failed to process Shopify OAuth callback');
-    } finally {
-      setOauthProcessing(false);
-    }
-  };
+  // TikTok and Shopify OAuth handlers removed - currently targeting only Google and Meta
 
 
 
@@ -420,7 +295,7 @@ const IntegrationsPage = () => {
       navigate('/google');
     } else if (platformType === 'meta') {
       console.log('Navigating to Facebook Dashboard');
-      navigate(`/facebook/${id}`);
+      navigate(`/meta/${id}`);
     } else {
       console.log('Navigating to Platform Dashboard');
       navigate(`/platform/${id}`);
@@ -449,13 +324,8 @@ const IntegrationsPage = () => {
     try {
       setConnectingPlatforms(prev => new Set(prev).add(platformType));
       
-      // Handle different platform OAuth flows
-      if (platformType === 'tiktok') {
-        redirectToTikTokAuth();
-      } else if (platformType === 'shopify') {
-        // Shopify OAuth is handled in the card component
-        redirectToShopifyAuth('example.myshopify.com'); // This will be overridden by the card
-      } else if (platformType === 'google') {
+      // Handle different platform OAuth flows (currently only Google and Meta supported)
+      if (platformType === 'google') {
         // Use OAuth manager for Google
         OAuthManager.setActiveRequest(platformType, 'google');
         redirectToPlatformAuth(platformType);
@@ -500,16 +370,6 @@ const IntegrationsPage = () => {
         case 'meta':
           result = await dispatch(refreshMetaTokens(accountId)).unwrap();
           console.log('Meta tokens refreshed successfully:', result);
-          break;
-          
-        case 'tiktok':
-          result = await dispatch(refreshTikTokTokens(accountId)).unwrap();
-          console.log('TikTok tokens refreshed successfully:', result);
-          break;
-          
-        case 'shopify':
-          result = await dispatch(refreshShopifyTokens(accountId)).unwrap();
-          console.log('Shopify tokens refreshed successfully:', result);
           break;
           
         default:
@@ -621,24 +481,26 @@ const IntegrationsPage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold mb-2">Welcome, Andreas 👋</h2>
+              <h2 className="text-xl font-semibold mb-2">{t('integrations.welcome', { name: 'Andreas' })} 👋</h2>
               <p className="text-blue-100">
-                Connect your advertising platforms and start managing your campaigns.
+                {t('integrations.welcomeMessage')}
                 {integrations.length > 0 && (
                   <span className="block mt-1">
-                    You have {integrations.length} platform{integrations.length !== 1 ? 's' : ''} available, 
-                    {integrations.filter(integ => integ.status === 'active').length} connected.
+                    {t('integrations.platformsAvailable', { 
+                      count: integrations.length, 
+                      connected: integrations.filter(integ => integ.status === 'active').length 
+                    })}
                   </span>
                 )}
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                + Add New Platform
+              <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md">
+                {t('integrations.addNewPlatform')}
               </button>
               <button
                 onClick={hideBanner}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-110"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -658,10 +520,10 @@ const IntegrationsPage = () => {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             <div>
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                Processing OAuth Callback
+                {t('integrations.processingOAuthCallback')}
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                Connecting your account...
+                {t('integrations.connectingYourAccount')}
               </p>
             </div>
           </div>
@@ -683,18 +545,18 @@ const IntegrationsPage = () => {
             </div>
             <div>
               <h3 className="text-sm font-medium text-green-800 dark:text-green-200">
-                Account Connected Successfully
+                {t('integrations.accountConnectedSuccessfully')}
               </h3>
               <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                {oauthData.user_data?.name || 'User'} ({oauthData.user_data?.email || 'No email'})
+                {oauthData.user_data?.name || t('common.user')} ({oauthData.user_data?.email || t('common.noEmail')})
                 {oauthData.pages_data && oauthData.pages_data.length > 0 && (
                   <span className="block mt-1">
-                    Found {oauthData.pages_data.length} page{oauthData.pages_data.length !== 1 ? 's' : ''}
+                    {t('integrations.foundPages', { count: oauthData.pages_data.length, defaultValue: `Found ${oauthData.pages_data.length} page${oauthData.pages_data.length !== 1 ? 's' : ''}` })}
                   </span>
                 )}
                 {oauthData.advertiser_accounts && oauthData.advertiser_accounts.length > 0 && (
                   <span className="block mt-1">
-                    Found {oauthData.advertiser_accounts.length} advertiser account{oauthData.advertiser_accounts.length !== 1 ? 's' : ''}
+                    {t('integrations.foundAdvertiserAccounts', { count: oauthData.advertiser_accounts.length, defaultValue: `Found ${oauthData.advertiser_accounts.length} advertiser account${oauthData.advertiser_accounts.length !== 1 ? 's' : ''}` })}
                   </span>
                 )}
               </p>
@@ -720,7 +582,7 @@ const IntegrationsPage = () => {
             </div>
             <div>
               <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                OAuth Connection Failed
+                {t('integrations.oauthConnectionFailed')}
               </h3>
               <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                 {oauthError}
@@ -745,7 +607,7 @@ const IntegrationsPage = () => {
             </div>
             <div>
               <h3 className="text-sm font-medium text-green-800 dark:text-green-200">
-                OAuth Connection Successful
+                {t('integrations.oauthConnectionSuccessful')}
               </h3>
               <p className="text-sm text-green-700 dark:text-green-300 mt-1">
                 {success}
@@ -761,13 +623,13 @@ const IntegrationsPage = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Platform Integrations
+              {t('integrations.title')}
             </h1>
             <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-full text-sm font-medium">
-              {integrations.length} Platforms
+              {integrations.length} {t('integrations.platforms')}
               {integrations.filter(integ => integ.status === 'active').length > 0 && (
                 <span className="ml-1 text-green-600 dark:text-green-400">
-                  • {integrations.filter(integ => integ.status === 'active').length} Connected
+                  • {integrations.filter(integ => integ.status === 'active').length} {t('integrations.connected')}
                 </span>
               )}
             </span>
@@ -800,22 +662,22 @@ const IntegrationsPage = () => {
             </div>
 
             {/* Archived Button */}
-            <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+            <button className="flex items-center space-x-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all duration-200">
               <ArchiveBoxIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">Archived</span>
+              <span className="text-sm font-medium">{t('integrations.archived')}</span>
             </button>
 
             {/* Show Filters Button */}
             <button
               onClick={toggleFiltersVisibility}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
                 showFilters
-                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <FunnelIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">Show Filters</span>
+              <span className="text-sm font-medium">{t('integrations.showFilters')}</span>
             </button>
 
 
@@ -827,7 +689,7 @@ const IntegrationsPage = () => {
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search integrations..."
+                placeholder={t('integrations.searchIntegrations')}
                 value={filters.search}
                 onChange={(e) => updateSearchFilter(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -839,9 +701,9 @@ const IntegrationsPage = () => {
               <button
                 onClick={loadIntegrations}
                 disabled={loading}
-                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed text-sm font-medium"
               >
-                {loading ? 'Loading...' : 'Refresh API'}
+                {loading ? t('common.loading') : t('integrations.refreshAPI')}
               </button>
             )}
           </div>
@@ -858,50 +720,46 @@ const IntegrationsPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Platform Type
+                  {t('integrations.platformType')}
                 </label>
                 <select 
                   value={filters.integrationType}
                   onChange={(e) => updateIntegrationTypeFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="all">All Platforms</option>
-                  <option value="google">Google</option>
-                  <option value="meta">Meta</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="shopify">Shopify</option>
-                  <option value="linkedin">LinkedIn</option>
-                  <option value="apple">Apple</option>
+                  <option value="all">{t('integrations.allPlatforms')}</option>
+                  <option value="google">{t('integrations.googleAds')}</option>
+                  <option value="meta">{t('integrations.metaAds')}</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Connection Status
+                  {t('integrations.connectionStatus')}
                 </label>
                 <select 
                   value={filters.status}
                   onChange={(e) => updateStatusFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Connected</option>
-                  <option value="inactive">Not Connected</option>
-                  <option value="error">Error</option>
+                  <option value="all">{t('integrations.allStatus')}</option>
+                  <option value="active">{t('integrations.connected')}</option>
+                  <option value="inactive">{t('integrations.notConnected')}</option>
+                  <option value="error">{t('common.error')}</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Account Type
+                  {t('integrations.accountType')}
                 </label>
                 <select 
                   value={filters.paymentStatus}
                   onChange={(e) => updatePaymentStatusFilter(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="all">All Types</option>
-                  <option value="paid">Paid</option>
-                  <option value="free">Free</option>
-                  <option value="trial">Trial</option>
+                  <option value="all">{t('integrations.allTypes')}</option>
+                  <option value="paid">{t('integrations.paid')}</option>
+                  <option value="free">{t('integrations.free')}</option>
+                  <option value="trial">{t('integrations.trial')}</option>
                 </select>
               </div>
             </div>
@@ -909,7 +767,10 @@ const IntegrationsPage = () => {
         )}
       </div>
 
-
+      {/* SA360 Campaign Assets API Test */}
+      <div className="mb-6">
+        <SA360CampaignAssetsTest />
+      </div>
 
       {/* Integrations Grid */}
       <div className={`grid gap-6 ${
@@ -956,13 +817,13 @@ const IntegrationsPage = () => {
             <PlusIcon className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No integrations connected
+            {t('integrations.noIntegrations')}
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            {filters.search ? 'Try adjusting your search terms.' : 'Connect your first platform integration to get started.'}
+            {filters.search ? t('common.search') : t('integrations.connectFirst')}
           </p>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-            + Connect Integration
+          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium">
+            {t('integrations.connectIntegration')}
           </button>
         </motion.div>
       )}

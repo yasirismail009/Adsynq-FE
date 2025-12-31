@@ -1,6 +1,7 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
-class ErrorBoundary extends React.Component {
+class ErrorBoundaryClass extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
@@ -24,6 +25,7 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      const { t } = this.props;
       // You can render any custom fallback UI
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -35,22 +37,22 @@ class ErrorBoundary extends React.Component {
             </div>
             <div className="mt-4 text-center">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                Something went wrong
+                {t('common.somethingWentWrong')}
               </h3>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                We're sorry, but something unexpected happened. Please try refreshing the page.
+                {t('common.errorOccurred')}
               </p>
               {this.state.error && (
-                <details className="mt-4 text-left">
+                <details className="mt-4 text-left rtl:text-right">
                   <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                    Error Details
+                    {t('common.errorDetails')}
                   </summary>
                   <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-32">
-                    <div className="font-semibold mb-1">Error:</div>
+                    <div className="font-semibold mb-1">{t('common.error')}:</div>
                     <div className="mb-2">{this.state.error.toString()}</div>
                     {this.state.errorInfo && (
                       <>
-                        <div className="font-semibold mb-1">Component Stack:</div>
+                        <div className="font-semibold mb-1">{t('common.componentStack')}:</div>
                         <div>{this.state.errorInfo.componentStack}</div>
                       </>
                     )}
@@ -61,7 +63,7 @@ class ErrorBoundary extends React.Component {
                 onClick={() => window.location.reload()}
                 className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                Refresh Page
+                {t('common.refreshPage')}
               </button>
             </div>
           </div>
@@ -72,5 +74,11 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+// Wrapper component to use hooks
+const ErrorBoundary = ({ children }) => {
+  const { t } = useTranslation();
+  return <ErrorBoundaryClass t={t}>{children}</ErrorBoundaryClass>;
+};
 
 export default ErrorBoundary;

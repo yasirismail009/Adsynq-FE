@@ -2,7 +2,6 @@ import { useEffect, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   fetchIntegrations,
-  createIntegration,
   updateIntegration,
   deleteIntegration,
   setSearchFilter,
@@ -37,10 +36,6 @@ export const useIntegrations = () => {
   // Actions
   const loadIntegrations = useCallback(() => {
     dispatch(fetchIntegrations());
-  }, [dispatch]);
-
-  const addIntegration = useCallback((integrationData) => {
-    return dispatch(createIntegration(integrationData));
   }, [dispatch]);
 
   const editIntegration = useCallback((id, data) => {
@@ -100,7 +95,6 @@ export const useIntegrations = () => {
     
     // Actions
     loadIntegrations,
-    addIntegration,
     editIntegration,
     removeIntegration,
     updateSearchFilter,

@@ -133,137 +133,10 @@ export const fetchGoogleOverallStats = createAsyncThunk(
   async (params = { date_from: '2023-01-01', date_to: '2025-12-31' }, { rejectWithValue }) => {
     try {
       const response = await apiService.marketing.googleOverallStats(params);
+      // Return the real API response data
       return response.data;
     } catch (error) {
       console.error('Error fetching Google overall stats:', error);
-      
-      // For development/testing, return mock data if API fails
-      if (import.meta.env.DEV) {
-        console.log('Returning mock Google stats data for development');
-        return {
-          "error": false,
-          "result": {
-            "accounts": [
-              {
-                "customer_id": "6278222097",
-                "google_account_id": "113057969003083685143",
-                "account_info": {
-                  "descriptive_name": "Ali",
-                  "currency_code": "PKR",
-                  "time_zone": "Asia/Karachi",
-                  "account_type": "client",
-                  "status": "active",
-                  "total_campaigns": 6,
-                  "enabled_campaigns": 2,
-                  "paused_campaigns": 3
-                },
-                "metrics": {
-                  "impressions": 85096,
-                  "clicks": 3688,
-                  "cost": 5031.26,
-                  "conversions": 686,
-                  "conversions_value": 190785.82,
-                  "ctr": 4.33,
-                  "cpc": 1.36,
-                  "conversion_rate": 18.6,
-                  "cost_per_conversion": 7.33,
-                  "campaigns_count": 6
-                },
-                "date_range": {
-                  "start_date": "2024-02-23",
-                  "end_date": "2025-08-25",
-                  "query_period": "2024-02-23 to 2025-08-25"
-                }
-              },
-              {
-                "customer_id": "1574545788",
-                "google_account_id": "113057969003083685143",
-                "account_info": {
-                  "descriptive_name": "Tekreign",
-                  "currency_code": "PKR",
-                  "time_zone": "Asia/Karachi",
-                  "account_type": "manager",
-                  "status": "inactive",
-                  "total_campaigns": 0,
-                  "enabled_campaigns": 0,
-                  "paused_campaigns": 0
-                },
-                "metrics": {
-                  "impressions": 0,
-                  "clicks": 0,
-                  "cost": 0,
-                  "conversions": 0,
-                  "conversions_value": 0,
-                  "ctr": 0,
-                  "cpc": 0,
-                  "conversion_rate": 0,
-                  "cost_per_conversion": 0,
-                  "campaigns_count": 0
-                },
-                "date_range": {
-                  "start_date": "2024-02-23",
-                  "end_date": "2025-08-25",
-                  "query_period": "2024-02-23 to 2025-08-25"
-                }
-              },
-              {
-                "customer_id": "1700964194",
-                "google_account_id": "113057969003083685143",
-                "account_info": {
-                  "descriptive_name": "Test Manager",
-                  "currency_code": "PKR",
-                  "time_zone": "Asia/Karachi",
-                  "account_type": "manager",
-                  "status": "inactive",
-                  "total_campaigns": 0,
-                  "enabled_campaigns": 0,
-                  "paused_campaigns": 0
-                },
-                "metrics": {
-                  "impressions": 0,
-                  "clicks": 0,
-                  "cost": 0,
-                  "conversions": 0,
-                  "conversions_value": 0,
-                  "ctr": 0,
-                  "cpc": 0,
-                  "conversion_rate": 0,
-                  "cost_per_conversion": 0,
-                  "campaigns_count": 0
-                },
-                "date_range": {
-                  "start_date": "2024-02-23",
-                  "end_date": "2025-08-25",
-                  "query_period": "2024-02-23 to 2025-08-25"
-                }
-              }
-            ],
-            "summary": {
-              "total_accounts": 3,
-              "valid_accounts": 3,
-              "active_accounts": 1,
-              "inactive_accounts": 2,
-              "total_impressions": 85096,
-              "total_clicks": 3688,
-              "total_cost": 5031.26,
-              "total_conversions": 686,
-              "total_conversions_value": 190785.82,
-              "average_ctr": 1.44,
-              "average_cpc": 0.45,
-              "average_conversion_rate": 6.2,
-              "average_cost_per_conversion": 2.44,
-              "include_inactive": true,
-              "date_range": {
-                "start_date": "2024-02-23",
-                "end_date": "2025-08-25",
-                "query_period": "2024-02-23 to 2025-08-25"
-              }
-            }
-          },
-          "message": "SearchAds360 overall stats retrieved successfully using Google Ads API",
-          "code": 0
-        };
-      }
       
       // Extract error message from response data
       let errorMessage = 'Failed to fetch Google stats';
@@ -480,6 +353,34 @@ export const fetchGoogleSa360Assets = createAsyncThunk(
   }
 );
 
+// Async thunk for fetching SA360 campaign assets (without specific campaign)
+export const fetchGoogleSa360CampaignAssets = createAsyncThunk(
+  'google/fetchSa360CampaignAssets',
+  async ({ googleAccountId, customerId, params = {} }, { rejectWithValue }) => {
+    try {
+      console.log('Fetching SA360 campaign assets with params:', { googleAccountId, customerId, params });
+      const response = await apiService.marketing.googleSa360CampaignAssets(googleAccountId, customerId, params);
+      console.log('SA360 campaign assets response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching SA360 campaign assets:', error);
+      
+      let errorMessage = 'Failed to fetch SA360 campaign assets';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // Connection state
@@ -502,6 +403,9 @@ const initialState = {
   sa360Reports: null,
   sa360ReportsLoading: false,
   sa360ReportsError: null,
+  
+  // Currently selected SA360 campaign (from GoogleAccountDetail table)
+  selectedSa360Campaign: null,
   
   // SA360 campaign report data
   sa360CampaignReport: null,
@@ -532,6 +436,11 @@ const initialState = {
   sa360Assets: null,
   sa360AssetsLoading: false,
   sa360AssetsError: null,
+  
+  // SA360 campaign assets data (without specific campaign)
+  sa360CampaignAssets: null,
+  sa360CampaignAssetsLoading: false,
+  sa360CampaignAssetsError: null,
   
   // Error states
   connectionError: null,
@@ -616,6 +525,16 @@ const googleSlice = createSlice({
           ? new Date(Date.now() + action.payload.expires_in * 1000).toISOString()
           : null
       };
+    },
+    
+    // Store the last clicked SA360 campaign so detail view can use it
+    setSelectedSa360Campaign: (state, action) => {
+      state.selectedSa360Campaign = action.payload;
+    },
+    
+    // Clear selected SA360 campaign
+    clearSelectedSa360Campaign: (state) => {
+      state.selectedSa360Campaign = null;
     },
     
     // Reset state
@@ -860,6 +779,21 @@ const googleSlice = createSlice({
         state.sa360AssetsLoading = false;
         state.sa360AssetsError = action.payload;
       });
+
+    // Fetch SA360 campaign assets (without specific campaign)
+    builder
+      .addCase(fetchGoogleSa360CampaignAssets.pending, (state) => {
+        state.sa360CampaignAssetsLoading = true;
+        state.sa360CampaignAssetsError = null;
+      })
+      .addCase(fetchGoogleSa360CampaignAssets.fulfilled, (state, action) => {
+        state.sa360CampaignAssetsLoading = false;
+        state.sa360CampaignAssets = action.payload;
+      })
+      .addCase(fetchGoogleSa360CampaignAssets.rejected, (state, action) => {
+        state.sa360CampaignAssetsLoading = false;
+        state.sa360CampaignAssetsError = action.payload;
+      });
   },
 });
 
@@ -877,6 +811,8 @@ export const {
   setConnectionData,
   clearConnectionData,
   setTokens,
+  setSelectedSa360Campaign,
+  clearSelectedSa360Campaign,
   resetGoogleState,
 } = googleSlice.actions;
 
@@ -910,6 +846,9 @@ export const selectGoogleSa360Reports = (state) => state.google.sa360Reports;
 export const selectGoogleSa360ReportsLoading = (state) => state.google.sa360ReportsLoading;
 export const selectGoogleSa360ReportsError = (state) => state.google.sa360ReportsError;
 
+// Selected SA360 campaign selector
+export const selectGoogleSelectedSa360Campaign = (state) => state.google.selectedSa360Campaign;
+
 // SA360 campaign report selectors
 export const selectGoogleSa360CampaignReport = (state) => state.google.sa360CampaignReport;
 export const selectGoogleSa360CampaignReportLoading = (state) => state.google.sa360CampaignReportLoading;
@@ -939,6 +878,11 @@ export const selectGoogleSa360AudienceTargetingError = (state) => state.google.s
 export const selectGoogleSa360Assets = (state) => state.google.sa360Assets;
 export const selectGoogleSa360AssetsLoading = (state) => state.google.sa360AssetsLoading;
 export const selectGoogleSa360AssetsError = (state) => state.google.sa360AssetsError;
+
+// SA360 campaign assets selectors (without specific campaign)
+export const selectGoogleSa360CampaignAssets = (state) => state.google.sa360CampaignAssets;
+export const selectGoogleSa360CampaignAssetsLoading = (state) => state.google.sa360CampaignAssetsLoading;
+export const selectGoogleSa360CampaignAssetsError = (state) => state.google.sa360CampaignAssetsError;
 
 // Helper selectors
 export const selectGoogleIsConnected = (state) => state.google.connectedAccounts.length > 0;

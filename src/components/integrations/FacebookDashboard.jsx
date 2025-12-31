@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeftIcon,
   ChartBarIcon,
@@ -38,10 +39,11 @@ import {
 } from '../../store/slices/metaSlice';
 
 const FacebookDashboard = () => {
+  const { t } = useTranslation();
   const { platformId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { integrations, loading: integrationsLoading } = useIntegrations();
+  const { integrations, loading: integrationsLoading, loadIntegrations } = useIntegrations();
   const [platformData, setPlatformData] = useState(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
   const [selectedMetric, setSelectedMetric] = useState('impressions');
@@ -51,6 +53,11 @@ const FacebookDashboard = () => {
   const metaOverallStats = useSelector(selectMetaOverallStats);
   const metaLoading = useSelector(selectMetaLoading);
   const metaErrors = useSelector(selectMetaErrors);
+
+  // Load integrations on mount
+  useEffect(() => {
+    loadIntegrations();
+  }, [loadIntegrations]);
 
   useEffect(() => {
     if (integrations.length > 0 && platformId) {
@@ -163,12 +170,12 @@ const FacebookDashboard = () => {
   if (!platformData) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-600 dark:text-red-400 mb-4">Facebook platform not found</p>
+        <p className="text-red-600 dark:text-red-400 mb-4">{t('integrations.metaAds')} {t('common.platformNotFound')}</p>
         <button 
           onClick={() => navigate('/integrations')}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
         >
-          Back to Integrations
+          {t('common.backToIntegrations')}
         </button>
       </div>
     );
@@ -203,7 +210,7 @@ const FacebookDashboard = () => {
     if (platformData.status === 'active') {
       return {
         icon: CheckCircleIcon,
-        text: 'Connected',
+        text: t('common.connected'),
         color: 'text-green-700 dark:text-green-400',
         bgColor: 'bg-green-100 dark:bg-green-900/20',
         iconColor: 'text-green-500'
@@ -211,7 +218,7 @@ const FacebookDashboard = () => {
     } else if (platformData.status === 'needs_refresh') {
       return {
         icon: ExclamationTriangleIcon,
-        text: 'Needs Refresh',
+        text: t('common.needsRefresh'),
         color: 'text-yellow-700 dark:text-yellow-400',
         bgColor: 'bg-yellow-100 dark:bg-yellow-900/20',
         iconColor: 'text-yellow-500'
@@ -219,7 +226,7 @@ const FacebookDashboard = () => {
     } else {
       return {
         icon: ExclamationTriangleIcon,
-        text: 'Not Connected',
+        text: t('common.notConnected'),
         color: 'text-gray-500 dark:text-gray-400',
         bgColor: 'bg-gray-100 dark:bg-gray-700',
         iconColor: 'text-gray-400'
@@ -234,16 +241,16 @@ const FacebookDashboard = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+        <div className="flex items-center justify-between rtl:flex-row-reverse">
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
             <button
               onClick={() => navigate('/integrations')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400 rtl:rotate-180" />
             </button>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
                 <img 
                   src="/assets/facebook.svg" 
@@ -254,30 +261,30 @@ const FacebookDashboard = () => {
               
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Facebook Ads Dashboard
+                  {t('common.facebookAdsDashboard')}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Manage Facebook and Instagram advertising campaigns
+                  {t('common.manageFacebookCampaigns')}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 rtl:space-x-reverse">
             <span className={`inline-flex items-center gap-2 px-3 py-1 ${statusInfo.bgColor} ${statusInfo.color} text-sm font-medium rounded-full`}>
               <StatusIcon className="w-4 h-4" />
               {statusInfo.text}
             </span>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
               <select 
                 value={selectedTimeframe}
                 onChange={(e) => setSelectedTimeframe(e.target.value)}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
               >
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="90d">Last 90 days</option>
+                <option value="7d">{t('common.last7Days')}</option>
+                <option value="30d">{t('common.last30Days')}</option>
+                <option value="90d">{t('common.last90Days')}</option>
               </select>
             </div>
           </div>
@@ -287,10 +294,10 @@ const FacebookDashboard = () => {
       {/* Account Information */}
       {platformData.userData && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Information</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.accountInformation')}</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="w-16 h-16 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/20">
                 {platformData.userData.image ? (
                   <img 
@@ -315,29 +322,29 @@ const FacebookDashboard = () => {
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="w-16 h-16 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900/20">
                 <BuildingStorefrontIcon className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               
                              <div>
                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                   {metaOverallStats?.result?.total_ad_accounts || 0} Ad Accounts
+                   {metaOverallStats?.result?.total_ad_accounts || 0} {t('common.adAccounts')}
                  </h3>
                  <p className="text-gray-600 dark:text-gray-400">
-                   {metaOverallStats?.result?.active_ad_accounts || 0} active accounts
+                   {metaOverallStats?.result?.active_ad_accounts || 0} {t('common.activeAccounts')}
                  </p>
                </div>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="w-16 h-16 rounded-full flex items-center justify-center bg-purple-100 dark:bg-purple-900/20">
                 <CalendarIcon className="w-8 h-8 text-purple-600 dark:text-purple-400" />
               </div>
               
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Connected
+                  {t('common.connected')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
                   {platformData.createdDate}
@@ -350,11 +357,11 @@ const FacebookDashboard = () => {
 
       {/* Overall Stats Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Overall Performance Stats</h2>
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between mb-6 rtl:flex-row-reverse">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('common.overallPerformanceStats')}</h2>
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
               <ArrowTrendingUpIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">Meta Platform Data</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{t('integrations.metaAds')} {t('common.platformData')}</span>
             </div>
           </div>
           
@@ -365,16 +372,16 @@ const FacebookDashboard = () => {
               transition={{ delay: 0.1 }}
               className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-6 border border-blue-200 dark:border-blue-700"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rtl:flex-row-reverse">
                 <div>
                   <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                    Total Spend
+                    {t('common.totalSpend')}
                   </p>
                   <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">
                     {formatMetric(metaOverallStats?.result?.overall_totals?.spend || 0)}
                   </p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Lifetime spend across all accounts
+                    {t('common.lifetimeSpend')}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-blue-200 dark:bg-blue-800/30">
@@ -389,10 +396,10 @@ const FacebookDashboard = () => {
               transition={{ delay: 0.2 }}
               className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl p-6 border border-green-200 dark:border-green-700"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rtl:flex-row-reverse">
                 <div>
                   <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                    Total Impressions
+                    {t('common.totalImpressions')}
                   </p>
                   <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
                     {formatMetric(metaOverallStats?.result?.overall_totals?.impressions || 0)}
@@ -413,10 +420,10 @@ const FacebookDashboard = () => {
               transition={{ delay: 0.3 }}
               className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border border-purple-200 dark:border-purple-700"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rtl:flex-row-reverse">
                 <div>
                   <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                    Total Clicks
+                    {t('common.totalClicks')}
                   </p>
                   <p className="text-2xl font-bold text-purple-900 dark:text-purple-100 mt-1">
                     {formatMetric(metaOverallStats?.result?.overall_totals?.clicks || 0)}
@@ -437,10 +444,10 @@ const FacebookDashboard = () => {
               transition={{ delay: 0.4 }}
               className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-6 border border-orange-200 dark:border-orange-700"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rtl:flex-row-reverse">
                 <div>
                   <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
-                    Average CTR
+                    {t('common.averageCTR')}
                   </p>
                   <p className="text-2xl font-bold text-orange-900 dark:text-orange-100 mt-1">
                     {formatMetric(metaOverallStats?.result?.overall_totals?.ctr || 0, 'percentage')}
@@ -460,9 +467,9 @@ const FacebookDashboard = () => {
           {metaOverallStats?.result && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rtl:flex-row-reverse">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Average CPC</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('common.averageCPC')}</p>
                     <p className="text-xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metaOverallStats?.result?.overall_totals?.cpc || 0)}
                     </p>
@@ -472,9 +479,9 @@ const FacebookDashboard = () => {
               </div>
 
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rtl:flex-row-reverse">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Average CPM</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('common.averageCPM')}</p>
                     <p className="text-xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metaOverallStats?.result?.overall_totals?.cpm || 0)}
                     </p>
@@ -484,9 +491,9 @@ const FacebookDashboard = () => {
               </div>
 
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between rtl:flex-row-reverse">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('common.totalConversions')}</p>
                     <p className="text-xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metaOverallStats?.result?.overall_totals?.conversions || 0)}
                     </p>
@@ -506,10 +513,10 @@ const FacebookDashboard = () => {
           transition={{ delay: 0.1 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rtl:flex-row-reverse">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Balance
+                {t('common.totalBalance')}
               </p>
                              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                  {formatMetric(metaOverallStats?.result?.overall_totals?.spend || 0)}
@@ -527,10 +534,10 @@ const FacebookDashboard = () => {
           transition={{ delay: 0.2 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rtl:flex-row-reverse">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Campaigns
+                {t('common.totalCampaigns')}
               </p>
                              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                  {formatMetric(metaOverallStats?.result?.total_ad_accounts || 0)}
@@ -548,10 +555,10 @@ const FacebookDashboard = () => {
           transition={{ delay: 0.3 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rtl:flex-row-reverse">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Active Accounts
+                {t('common.activeAccounts')}
               </p>
                              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                  {formatMetric(metaOverallStats?.result?.active_ad_accounts || 0)}
@@ -569,10 +576,10 @@ const FacebookDashboard = () => {
           transition={{ delay: 0.4 }}
           className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rtl:flex-row-reverse">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Accounts
+                {t('common.totalAccounts')}
               </p>
                              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                  {formatMetric(metaOverallStats?.result?.total_ad_accounts || 0)}
@@ -588,21 +595,21 @@ const FacebookDashboard = () => {
       {/* Ad Accounts List */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Ad Accounts</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('common.adAccounts')}</h2>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Account Name</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Account ID</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Balance</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Currency</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Age (Days)</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Campaigns</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Actions</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.accountName')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.accountID')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.status')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.balance')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.currency')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.ageDays')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.campaigns')}</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -611,7 +618,7 @@ const FacebookDashboard = () => {
                   <td className="py-3 px-4">
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">{account.name}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Owner: {account.owner}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.owner')}: {account.owner}</p>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-gray-900 dark:text-white">
@@ -640,7 +647,7 @@ const FacebookDashboard = () => {
                   </td>
                   <td className="py-3 px-4">
                     <button 
-                      onClick={() => navigate(`/facebook/ad-account/${account.id}`)}
+                      onClick={() => navigate(`/meta/ad-account/${account.id}`)}
                       className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                     >
                       More Details
@@ -657,18 +664,18 @@ const FacebookDashboard = () => {
       {facebookData.campaigns.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                   <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Campaigns</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('common.activeCampaigns')}</h2>
         </div>
           
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Campaign</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Budget</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Start Time</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Actions</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.campaign')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.status')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.budget')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.startTime')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400 rtl:text-right">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -677,10 +684,10 @@ const FacebookDashboard = () => {
                                          <td className="py-3 px-4">
                        <div>
                          <p className="font-medium text-gray-900 dark:text-white">{campaign.name}</p>
-                         <div className="flex items-center space-x-2 mt-1">
-                           <p className="text-sm text-gray-500 dark:text-gray-400">ID: {campaign.id}</p>
+                         <div className="flex items-center space-x-2 mt-1 rtl:space-x-reverse">
+                           <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.id')}: {campaign.id}</p>
                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
-                             {metaUserAdAccounts?.result?.accounts?.find(acc => acc.campaigns?.data?.some(c => c.id === campaign.id))?.name || 'Unknown Account'}
+                             {metaUserAdAccounts?.result?.accounts?.find(acc => acc.campaigns?.data?.some(c => c.id === campaign.id))?.name || t('common.unknownAccount')}
                            </span>
                          </div>
                        </div>
@@ -702,10 +709,10 @@ const FacebookDashboard = () => {
                     </td>
                     <td className="py-3 px-4">
                       <button 
-                        onClick={() => navigate(`/facebook/campaign/${campaign.id}`)}
+                        onClick={() => navigate(`/meta/campaign/${campaign.id}`)}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                       >
-                        More Details
+                        {t('common.moreDetails')}
                       </button>
                     </td>
                   </tr>
@@ -719,10 +726,10 @@ const FacebookDashboard = () => {
       {/* Error Display */}
       {metaErrors.userAdAccounts && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 rtl:space-x-reverse">
             <ExclamationTriangleIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
             <p className="text-red-800 dark:text-red-200">
-              Error loading ad accounts: {metaErrors.userAdAccounts}
+              {t('common.errorLoadingAdAccounts')}: {metaErrors.userAdAccounts}
             </p>
           </div>
         </div>
@@ -730,32 +737,32 @@ const FacebookDashboard = () => {
 
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.quickActions')}</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
             <ChartBarIcon className="w-5 h-5" />
-            <span>Create Campaign</span>
+            <span>{t('common.createCampaign')}</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
             <PhotoIcon className="w-5 h-5" />
-            <span>Upload Creative</span>
+            <span>{t('common.uploadCreative')}</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
             <UsersIcon className="w-5 h-5" />
-            <span>Manage Audiences</span>
+            <span>{t('common.manageAudiences')}</span>
           </button>
           
           <button 
             onClick={() => {
               dispatch(fetchMetaUserAdAccounts());
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+            className="flex items-center justify-center space-x-2 px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors rtl:space-x-reverse"
           >
             <ArrowPathIcon className="w-5 h-5" />
-            <span>Refresh Data</span>
+            <span>{t('common.refreshData')}</span>
           </button>
         </div>
       </div>

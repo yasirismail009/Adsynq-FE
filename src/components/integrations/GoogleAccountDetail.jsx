@@ -34,7 +34,8 @@ import {
   fetchGoogleSa360Reports,
   selectGoogleSa360Reports,
   selectGoogleSa360ReportsLoading,
-  selectGoogleSa360ReportsError
+  selectGoogleSa360ReportsError,
+  setSelectedSa360Campaign
 } from '../../store/slices/googleSlice';
 
 // Helper functions for chart colors
@@ -59,7 +60,7 @@ const getChannelTypeColor = (type) => {
 };
 
 const GoogleAccountDetail = () => {
-  const { accountId } = useParams();
+  const { googleAccountId,accountId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
@@ -73,11 +74,17 @@ const GoogleAccountDetail = () => {
   const sa360ReportsLoading = useSelector(selectGoogleSa360ReportsLoading);
   const sa360ReportsError = useSelector(selectGoogleSa360ReportsError);
   
-  const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
-  const [dateRange, setDateRange] = useState(() => ({
-    date_from: '2023-01-01',
-    date_to: new Date().toISOString().split('T')[0]
-  }));
+  const [selectedTimeframe, setSelectedTimeframe] = useState('all');
+  const [dateRange, setDateRange] = useState(() => {
+    // Default to all time - use a very early date to today
+    const today = new Date();
+    const allTimeStart = new Date('2020-01-01'); // Start from 2020 to cover all historical data
+    
+    return {
+      date_from: allTimeStart.toISOString().split('T')[0],
+      date_to: today.toISOString().split('T')[0]
+    };
+  });
 
   // Find the specific Google Ads account
   const account = overallStats?.result?.accounts?.find(acc => acc.customer_id === accountId);
@@ -85,14 +92,8 @@ const GoogleAccountDetail = () => {
   // Call SA360 reports API when account is found
   useEffect(() => {
     if (account) {
-      console.log('Account found, calling SA360 reports API with:', {
-        googleAccountId: account.google_account_id,
-        customerId: account.customer_id
-      });
-      
-      // Call SA360 reports API
       dispatch(fetchGoogleSa360Reports({
-        googleAccountId: account.google_account_id,
+        googleAccountId: googleAccountId,
         customerId: account.customer_id,
         params: {
           date_from: dateRange.date_from,
@@ -100,19 +101,7 @@ const GoogleAccountDetail = () => {
         }
       }));
     }
-  }, [account, dispatch, dateRange]);
-
-  // Console log SA360 reports response
-  useEffect(() => {
-    if (sa360Reports) {
-      console.log('SA360 Reports Response:', sa360Reports);
-      console.log('Campaign Data:', sa360Reports.result?.report_data);
-      console.log('Date Range:', sa360Reports.result?.date_range);
-    }
-    if (sa360ReportsError) {
-      console.error('SA360 Reports Error:', sa360ReportsError);
-    }
-  }, [sa360Reports, sa360ReportsError]);
+  }, [account, dispatch, dateRange, googleAccountId, dateRange.date_from, dateRange.date_to]);
 
   // Handle timeframe selection
   const handleTimeframeChange = (timeframe) => {
@@ -131,8 +120,13 @@ const GoogleAccountDetail = () => {
       case '90d':
         startDate.setDate(today.getDate() - 90);
         break;
+      case 'all':
+        // All time - use a very early date
+        startDate = new Date('2020-01-01');
+        break;
       default:
-        startDate.setDate(today.getDate() - 7);
+        // Default to all time
+        startDate = new Date('2020-01-01');
     }
     
     setDateRange({
@@ -142,13 +136,16 @@ const GoogleAccountDetail = () => {
   };
 
   // Format metrics for display
-  const formatMetric = (value, type = 'number', currency = 'PKR') => {
+  const formatMetric = (value, type = 'number', currency = null) => {
     if (value === null || value === undefined) return '0';
+    
+    // Get currency from account if not provided
+    const displayCurrency = currency || account?.account_info?.currency_code || account?.metrics?.cost_currency || 'USD';
     
     if (type === 'currency') {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: currency,
+        currency: displayCurrency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
       }).format(value);
@@ -190,45 +187,39 @@ const GoogleAccountDetail = () => {
 
     const { metrics } = account;
 
-    // Performance metrics chart data
+    // Performance metrics chart data - only show actual metrics, no hardcoded targets
     const performanceData = [
-      { name: 'CTR', value: metrics.ctr, target: 2.0 },
-      { name: 'CPC', value: metrics.cpc, target: 3.0 },
-      { name: 'Conversion Rate', value: metrics.conversion_rate, target: 5.0 },
-      { name: 'Cost per Conversion', value: metrics.cost_per_conversion, target: 10.0 }
-    ];
+      { name: 'CTR', value: metrics.ctr ?? 0 },
+      { name: 'CPC', value: metrics.cpc ?? 0 },
+      { name: 'Conversion Rate', value: metrics.conversion_rate ?? 0 },
+      { name: 'Cost per Conversion', value: metrics.cost_per_conversion ?? 0 }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
-    // Revenue metrics chart data
+    // Revenue metrics chart data - only show actual data
     const revenueData = [
-      { name: 'Conversions', value: metrics.conversions },
-      { name: 'Conversion Value', value: metrics.conversions_value },
-      { name: 'Cost', value: metrics.cost },
-      { name: 'ROAS', value: metrics.conversions_value / Math.max(metrics.cost, 1) }
-    ];
+      { name: 'Conversions', value: metrics.conversions ?? 0 },
+      { name: 'Cost', value: metrics.cost ?? 0 },
+      { name: 'Cost per Conversion', value: metrics.cost_per_conversion ?? 0 }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
-    // Campaign performance distribution
+    // Campaign performance distribution - only show actual data
     const campaignPerformanceData = [
-      { name: 'Impressions', value: metrics.impressions, color: '#3B82F6' },
-      { name: 'Clicks', value: metrics.clicks, color: '#10B981' },
-      { name: 'Conversions', value: metrics.conversions, color: '#F59E0B' },
-      { name: 'Cost', value: metrics.cost, color: '#EF4444' }
-    ];
+      { name: 'Impressions', value: metrics.impressions ?? 0, color: '#3B82F6' },
+      { name: 'Clicks', value: metrics.clicks ?? 0, color: '#10B981' },
+      { name: 'Conversions', value: metrics.conversions ?? 0, color: '#F59E0B' },
+      { name: 'Cost', value: metrics.cost ?? 0, color: '#EF4444' }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
-    // Account health metrics
-    const accountHealthData = [
-      { name: 'Campaign Activity', value: 85, color: '#3B82F6' },
-      { name: 'Ad Group Activity', value: 75, color: '#10B981' },
-      { name: 'Ad Activity', value: 90, color: '#F59E0B' },
-      { name: 'Overall Activity', value: 83, color: '#8B5CF6' }
-    ];
+    // Account health metrics - removed hardcoded values, only show if available from API
+    const accountHealthData = [];
 
-    // ROI metrics chart
+    // ROI metrics chart - only show actual data
     const roiData = [
-      { name: 'ROAS', value: metrics.conversions_value / Math.max(metrics.cost, 1) },
-      { name: 'Conversion Rate', value: metrics.conversion_rate },
-      { name: 'CTR', value: metrics.ctr },
-      { name: 'CPC', value: metrics.cpc }
-    ];
+      { name: 'Conversion Rate', value: metrics.conversion_rate ?? 0 },
+      { name: 'CTR', value: metrics.ctr ?? 0 },
+      { name: 'CPC', value: metrics.cpc ?? 0 },
+      { name: 'Cost per Conversion', value: metrics.cost_per_conversion ?? 0 }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
     return {
       performanceData,
@@ -239,32 +230,54 @@ const GoogleAccountDetail = () => {
     };
   }, [account]);
 
+  // Extract SA360 campaigns and customers from the flexible response shape
+  const sa360Campaigns = useMemo(() => {
+    const reportData = sa360Reports?.result?.report_data ?? sa360Reports?.result ?? null;
+    if (!reportData) return [];
+    if (Array.isArray(reportData)) return reportData;
+    return reportData.campaign || [];
+  }, [sa360Reports]);
+
+  const sa360Customers = useMemo(() => {
+    const reportData = sa360Reports?.result?.report_data ?? sa360Reports?.result ?? null;
+    if (!reportData || Array.isArray(reportData)) return [];
+    return reportData.customer || [];
+  }, [sa360Reports]);
+
   // Prepare SA360 Campaign Reports Chart Data
   const sa360ChartData = useMemo(() => {
-    if (!sa360Reports?.result?.report_data) return {};
+    if (!sa360Reports?.result) return {};
+    const reportData = sa360Reports.result.report_data ?? sa360Reports.result ?? null;
+    if (!reportData) return {};
 
-    const campaigns = sa360Reports.result.report_data;
+    // Support both old array structure and new object structure
+    const campaigns = sa360Campaigns;
+    const overallPerformance = Array.isArray(reportData)
+      ? {}
+      : reportData.performance?.overview || {};
 
     // Campaign Performance Line Chart Data
     const campaignPerformanceLineData = campaigns.map(campaign => {
-      const performance = campaign.performance?.overview || {};
+      const campaignPerformance = campaign.performance?.overview || campaign.performance || overallPerformance;
+      const costMicros = campaignPerformance.cost_micros ?? 0;
+      const cost = campaignPerformance.cost ?? (costMicros / 1_000_000);
+      
       return {
-        name: campaign.campaign_name || 'Unknown Campaign',
-        impressions: performance.impressions || 0,
-        clicks: performance.clicks || 0,
-        cost: performance.cost || 0,
-        conversions: performance.conversions || 0,
-        conversions_value: performance.conversions_value || 0,
-        ctr: (performance.ctr || 0) * 100,
-        cpc: (performance.average_cpc || 0) / 1000000,
-        roas: performance.cost > 0 ? 
-          (performance.conversions_value || 0) / performance.cost : 0
+        name: campaign.campaign_name || campaign.name || 'Unknown Campaign',
+        impressions: campaignPerformance.impressions ?? 0,
+        clicks: campaignPerformance.clicks ?? 0,
+        cost,
+        conversions: campaignPerformance.conversions ?? campaignPerformance.all_conversions ?? 0,
+        conversions_value: campaignPerformance.conversions_value ?? 0,
+        ctr: (campaignPerformance.ctr ?? 0) * 100,
+        cpc: campaignPerformance.average_cpc ? (campaignPerformance.average_cpc / 1_000_000) : 0,
+        roas: cost > 0 ? ((campaignPerformance.conversions_value ?? 0) / cost) : 0
       };
     });
 
     // Campaign Status Distribution
     const campaignStatusData = campaigns.reduce((acc, campaign) => {
-      const status = campaign.campaign_status || 'UNKNOWN';
+      const status = campaign.campaign_status || campaign.status || 'UNKNOWN';
       if (!acc[status]) {
         acc[status] = { name: status, value: 0, color: getStatusColor(status) };
       }
@@ -274,7 +287,7 @@ const GoogleAccountDetail = () => {
 
     // Campaign Type Distribution
     const campaignTypeData = campaigns.reduce((acc, campaign) => {
-      const type = campaign.advertising_channel_type || 'UNKNOWN';
+      const type = campaign.advertising_channel_type || campaign.channel_type || 'UNKNOWN';
       if (!acc[type]) {
         acc[type] = { name: type, value: 0, color: getChannelTypeColor(type) };
       }
@@ -284,25 +297,33 @@ const GoogleAccountDetail = () => {
 
     // Performance Metrics by Campaign
     const performanceByCampaign = campaigns.map(campaign => {
-      const performance = campaign.performance?.overview || {};
+      const campaignPerformance = campaign.performance?.overview || campaign.performance || overallPerformance;
+      const costMicros = campaignPerformance.cost_micros ?? 0;
+      const cost = campaignPerformance.cost ?? (costMicros / 1_000_000);
+      
       return {
-        name: campaign.campaign_name || 'Unknown Campaign',
-        impressions: performance.impressions || 0,
-        clicks: performance.clicks || 0,
-        conversions: performance.conversions || 0,
-        cost: performance.cost || 0
+        name: campaign.campaign_name || campaign.name || 'Unknown Campaign',
+        impressions: campaignPerformance.impressions ?? 0,
+        clicks: campaignPerformance.clicks ?? 0,
+        conversions: campaignPerformance.conversions ?? campaignPerformance.all_conversions ?? 0,
+        cost
       };
     });
 
     // ROI Analysis by Campaign
     const roiByCampaign = campaigns.map(campaign => {
-      const perf = campaign.performance?.overview || {};
+      const perf = campaign.performance?.overview || campaign.performance || overallPerformance;
+      const costMicros = perf.cost_micros ?? 0;
+      const cost = perf.cost ?? (costMicros / 1_000_000);
+      
       return {
-        name: campaign.campaign_name || 'Unknown Campaign',
-        roas: perf.cost > 0 ? (perf.conversions_value || 0) / perf.cost : 0,
-        ctr: (perf.ctr || 0) * 100,
-        cpc: (perf.average_cpc || 0) / 1000000,
-        conversion_rate: perf.clicks > 0 ? ((perf.conversions || 0) / perf.clicks) * 100 : 0
+        name: campaign.campaign_name || campaign.name || 'Unknown Campaign',
+        roas: cost > 0 ? ((perf.conversions_value ?? 0) / cost) : 0,
+        ctr: (perf.ctr ?? 0) * 100,
+        cpc: perf.average_cpc ? (perf.average_cpc / 1_000_000) : 0,
+        conversion_rate: (perf.clicks ?? 0) > 0
+          ? (((perf.conversions ?? perf.all_conversions ?? 0) / perf.clicks) * 100)
+          : 0
       };
     });
 
@@ -352,8 +373,15 @@ const GoogleAccountDetail = () => {
     );
   }
 
-  const statusInfo = getStatusInfo(account.account_info.status);
+  const isActive = !account.account_info.is_test_account && (account.metrics?.impressions > 0 || account.metrics?.clicks > 0);
+  const statusInfo = getStatusInfo(isActive ? 'active' : 'inactive');
   const { metrics } = account;
+
+  // Get customer details from SA360 reports (first customer or matching customer)
+  const customerDetails = sa360Customers.length > 0 
+    ? sa360Customers.find(cust => cust.customer_id === accountId) || sa360Customers[0]
+    : null;
+  const customerPerformance = customerDetails?.performance?.overview || {};
 
   return (
     <div className="space-y-6">
@@ -403,11 +431,165 @@ const GoogleAccountDetail = () => {
                 <option value="7d">Last 7 days</option>
                 <option value="30d">Last 30 days</option>
                 <option value="90d">Last 90 days</option>
+                <option value="all">All Time</option>
               </select>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Customer Details Section */}
+      {customerDetails && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+            <UserIcon className="w-6 h-6 mr-2" />
+            Customer Details
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            {/* Customer Information */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Customer Information</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Customer Name:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{customerDetails.customer_descriptive_name || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Customer ID:</span>
+                  <span className="text-sm font-mono text-gray-900 dark:text-white">{customerDetails.customer_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Status:</span>
+                  <span className={`text-sm font-medium ${
+                    customerDetails.customer_status === 'ENABLED' 
+                      ? 'text-green-600 dark:text-green-400' 
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {customerDetails.customer_status || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Currency:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{customerDetails.customer_currency_code || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Time Zone:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{customerDetails.customer_time_zone || 'N/A'}</span>
+                </div>
+                {customerDetails.customer_manager !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Manager Account:</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {customerDetails.customer_manager ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Optimization Score:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {customerDetails.customer_optimization_score ?? 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Overview */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Performance Overview</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Impressions:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerPerformance.impressions ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Clicks:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerPerformance.clicks ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Cost:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(
+                      customerPerformance.cost ?? (customerPerformance.cost_micros ?? 0) / 1_000_000,
+                      'currency',
+                      customerDetails.customer_currency_code
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Conversions:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerPerformance.conversions ?? customerPerformance.all_conversions ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">CTR:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric((customerPerformance.ctr ?? 0) * 100, 'percentage')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">CPC:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(
+                      customerPerformance.average_cpc ? (customerPerformance.average_cpc / 1_000_000) : 0,
+                      'currency',
+                      customerDetails.customer_currency_code
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Metrics */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Additional Metrics</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Interactions:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerPerformance.interactions ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Invalid Clicks:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerPerformance.invalid_clicks ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Invalid Click Rate:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric((customerPerformance.invalid_click_rate ?? 0) * 100, 'percentage')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Interaction Rate:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric((customerPerformance.interaction_rate ?? 0) * 100, 'percentage')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">All Conversions:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerDetails.performance?.all_conversions?.all_conversions ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Engagements:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {formatMetric(customerDetails.performance?.other_metrics?.engagements ?? 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Performance Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -573,7 +755,7 @@ const GoogleAccountDetail = () => {
                 Conversion Value
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                {formatMetric(metrics.conversions_value, 'currency', account.account_info.currency_code)}
+                {formatMetric(metrics.conversions_value ?? 0, 'currency', account.account_info.currency_code)}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/20">
@@ -648,7 +830,7 @@ const GoogleAccountDetail = () => {
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">ROAS</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {(metrics.conversions_value / Math.max(metrics.cost, 1)).toFixed(2)}x
+                    N/A
                   </p>
                 </div>
                 <ArrowTrendingUpIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
@@ -665,7 +847,7 @@ const GoogleAccountDetail = () => {
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Campaigns</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {account.account_info.total_campaigns}
+                    {sa360Reports?.result?.record_count ?? 0}
                   </p>
                 </div>
                 <ChartBarIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
@@ -682,7 +864,7 @@ const GoogleAccountDetail = () => {
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Account Type</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
-                    {account.account_info.account_type}
+                    {account.account_info.is_manager ? 'manager' : 'client'}
                   </p>
                 </div>
                 <BuildingOfficeIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
@@ -718,55 +900,55 @@ const GoogleAccountDetail = () => {
               </div>
             </div>
 
-            {/* Account Health */}
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <ShieldCheckIcon className="w-5 h-5 mr-2" />
-                Account Health
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Campaign Activity</span>
-                  <span className="font-medium">85%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Ad Group Activity</span>
-                  <span className="font-medium">75%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Ad Activity</span>
-                  <span className="font-medium">90%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Overall Activity</span>
-                  <span className="font-medium">83%</span>
+            {/* Account Health - Only show if data is available from API */}
+            {chartData.accountHealthData && chartData.accountHealthData.length > 0 && (
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <ShieldCheckIcon className="w-5 h-5 mr-2" />
+                  Account Health
+                </h3>
+                <div className="space-y-3">
+                  {chartData.accountHealthData.map((item, index) => (
+                    <div key={index} className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">{item.name}</span>
+                      <span className="font-medium">{item.value}%</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* ROI Metrics */}
+            {/* ROI Metrics - Only show calculated metrics from actual data */}
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                 <BoltIcon className="w-5 h-5 mr-2" />
                 ROI Metrics
               </h3>
               <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">ROAS</span>
-                  <span className="font-medium">{(metrics.conversions_value / Math.max(metrics.cost, 1)).toFixed(2)}x</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Spend Efficiency</span>
-                  <span className="font-medium">92%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Conversion Efficiency</span>
-                  <span className="font-medium">88%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Click Efficiency</span>
-                  <span className="font-medium">95%</span>
-                </div>
+                {metrics.cost > 0 && metrics.conversions_value > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">ROAS</span>
+                    <span className="font-medium">{(metrics.conversions_value / metrics.cost).toFixed(2)}x</span>
+                  </div>
+                )}
+                {metrics.cost > 0 && metrics.conversions > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Cost per Conversion</span>
+                    <span className="font-medium">{formatMetric(metrics.cost / metrics.conversions, 'currency', account.account_info.currency_code)}</span>
+                  </div>
+                )}
+                {metrics.clicks > 0 && metrics.conversions > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Conversion Rate</span>
+                    <span className="font-medium">{((metrics.conversions / metrics.clicks) * 100).toFixed(2)}%</span>
+                  </div>
+                )}
+                {metrics.impressions > 0 && metrics.clicks > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">CTR</span>
+                    <span className="font-medium">{((metrics.clicks / metrics.impressions) * 100).toFixed(2)}%</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -827,14 +1009,16 @@ const GoogleAccountDetail = () => {
              gradient={true}
            />
            
-           <ChartCard
-             title="Account Health Overview"
-             subtitle="Activity rates across account with gradient colors"
-             data={chartData.accountHealthData}
-             type="pie"
-             height={300}
-             gradient={true}
-           />
+           {chartData.accountHealthData && chartData.accountHealthData.length > 0 && (
+             <ChartCard
+               title="Account Health Overview"
+               subtitle="Activity rates across account with gradient colors"
+               data={chartData.accountHealthData}
+               type="pie"
+               height={300}
+               gradient={true}
+             />
+           )}
          </div>
 
                                                                        {/* ROI Metrics Chart */}
@@ -1095,7 +1279,9 @@ const GoogleAccountDetail = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Conversion Value</span>
-                <span className="font-medium">{formatMetric(metrics.conversions_value, 'currency', account.account_info.currency_code)}</span>
+                <span className="font-medium">
+                  {formatMetric(metrics.conversions_value ?? 0, 'currency', account.account_info.currency_code)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Cost per Conversion</span>
@@ -1115,18 +1301,20 @@ const GoogleAccountDetail = () => {
                 <span className="text-gray-600 dark:text-gray-400">Total Cost</span>
                 <span className="font-medium">{formatMetric(metrics.cost, 'currency', account.account_info.currency_code)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">ROAS</span>
-                <span className="font-medium">{(metrics.conversions_value / Math.max(metrics.cost, 1)).toFixed(2)}x</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Profit Margin</span>
-                <span className="font-medium">{((metrics.conversions_value - metrics.cost) / Math.max(metrics.conversions_value, 1) * 100).toFixed(1)}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Net Profit</span>
-                <span className="font-medium">{formatMetric(metrics.conversions_value - metrics.cost, 'currency', account.account_info.currency_code)}</span>
-              </div>
+              {metrics.cost > 0 && metrics.conversions_value > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">ROAS</span>
+                  <span className="font-medium">{(metrics.conversions_value / metrics.cost).toFixed(2)}x</span>
+                </div>
+              )}
+              {metrics.cost > 0 && metrics.conversions_value > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Net Revenue</span>
+                  <span className="font-medium">
+                    {formatMetric(metrics.conversions_value - metrics.cost, 'currency', account.account_info.currency_code)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1161,7 +1349,7 @@ const GoogleAccountDetail = () => {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Account Type</label>
-              <p className="text-gray-900 dark:text-white capitalize">{account.account_info.account_type}</p>
+              <p className="text-gray-900 dark:text-white capitalize">{account.account_info.is_manager ? 'manager' : 'client'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Time Zone</label>
@@ -1169,12 +1357,16 @@ const GoogleAccountDetail = () => {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Campaigns</label>
-              <p className="text-gray-900 dark:text-white font-medium">{account.account_info.total_campaigns}</p>
+              <p className="text-gray-900 dark:text-white font-medium">
+                {sa360Reports?.result?.record_count ?? sa360Campaigns.length ?? 0}
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Data Period</label>
               <p className="text-gray-900 dark:text-white">
-                {account.date_range.query_period}
+                {account.date_range.start_date && account.date_range.end_date
+                  ? `${account.date_range.start_date} to ${account.date_range.end_date}`
+                  : 'All Time'}
               </p>
             </div>
           </div>
@@ -1206,9 +1398,8 @@ const GoogleAccountDetail = () => {
              <div className="flex items-center space-x-2">
                <button
                  onClick={() => {
-                   console.log('Refreshing SA360 reports with current date range');
                    dispatch(fetchGoogleSa360Reports({
-                     googleAccountId: account.google_account_id,
+                     googleAccountId: account.customer_id,
                      customerId: account.customer_id,
                      params: {
                        date_from: dateRange.date_from,
@@ -1261,9 +1452,10 @@ const GoogleAccountDetail = () => {
                    </th>
                  </tr>
                </thead>
-               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                 {sa360Reports.result.report_data.map((campaign, index) => {
-                   const performance = campaign.performance?.overview || {};
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {sa360Campaigns.map((campaign, index) => {
+                  const performance = campaign.performance?.overview || campaign.performance || {};
+                  const costMicros = performance.cost_micros ?? 0;
                    const getStatusColor = (status) => {
                      switch (status) {
                        case 'ENABLED': return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20';
@@ -1275,19 +1467,31 @@ const GoogleAccountDetail = () => {
                    
                    return (
                      <tr key={campaign.campaign_id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                       <td className="px-6 py-4 whitespace-nowrap">
-                         <div>
-                           <button
-                             onClick={() => navigate(`/google/sa360/campaign/${account.google_account_id}/${account.customer_id}/${campaign.campaign_id}`)}
-                             className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer text-left"
-                           >
-                             {campaign.campaign_name}
-                           </button>
-                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                             ID: {campaign.campaign_id}
-                           </div>
-                         </div>
-                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <button
+                            onClick={() => {
+                              // Store the clicked campaign in Redux so the detail view can use it
+                              dispatch(setSelectedSa360Campaign({
+                                googleAccountId,
+                                customerId: account.customer_id,
+                                campaignId: campaign.campaign_id,
+                                date: campaign.date,
+                                campaign,
+                                account
+                              }));
+                              
+                              navigate(`/google/sa360/campaign/${googleAccountId}/${account.customer_id}/${campaign.campaign_id}?date=${campaign.date}`);
+                            }}
+                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer text-left"
+                          >
+                            {campaign.campaign_name}
+                          </button>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            ID: {campaign.campaign_id}
+                          </div>
+                        </div>
+                      </td>
                        <td className="px-6 py-4 whitespace-nowrap">
                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(campaign.campaign_status)}`}>
                            {campaign.campaign_status}
@@ -1297,25 +1501,27 @@ const GoogleAccountDetail = () => {
                          {campaign.advertising_channel_type}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric(performance.impressions || 0)}
+                         {formatMetric(performance.impressions ?? 0)}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric(performance.clicks || 0)}
+                         {formatMetric(performance.clicks ?? 0)}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric((performance.ctr || 0) * 100, 'percentage')}
+                         {formatMetric((performance.ctr ?? 0) * 100, 'percentage')}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric(performance.cost || 0, 'currency', account.account_info.currency_code)}
+                         {formatMetric(performance.cost ?? (costMicros / 1_000_000), 'currency', account.account_info.currency_code)}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {(performance.average_cpc || 0) > 0 ? formatMetric((performance.average_cpc || 0) / 1000000, 'currency', account.account_info.currency_code) : 'N/A'}
+                         {(performance.average_cpc ?? 0) > 0
+                           ? formatMetric((performance.average_cpc ?? 0) / 1_000_000, 'currency', account.account_info.currency_code)
+                           : 'N/A'}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric(performance.conversions || 0)}
+                         {formatMetric(performance.conversions ?? performance.all_conversions ?? 0)}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                         {formatMetric(performance.conversions_value || 0, 'currency', account.account_info.currency_code)}
+                         {formatMetric(performance.conversions_value ?? 0, 'currency', account.account_info.currency_code)}
                        </td>
                      </tr>
                    );
@@ -1324,20 +1530,45 @@ const GoogleAccountDetail = () => {
              </table>
            </div>
 
+           {/* SA360 Customers (if provided) */}
+           {sa360Customers.length > 0 && (
+             <div className="mt-6">
+               <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">Customers</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {sa360Customers.map((cust, idx) => (
+                   <div key={cust.customer_id || idx} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                     <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Customer ID</div>
+                     <div className="font-semibold text-gray-900 dark:text-white">{cust.customer_id}</div>
+                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                       {cust.customer_descriptive_name || '—'}
+                     </div>
+                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                       {cust.customer_currency_code || cust.customer_currency || '—'} • {cust.customer_time_zone || '—'}
+                     </div>
+                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                       Status: {cust.customer_status || '—'}{cust.customer_manager ? ' • Manager' : ''}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+
            {/* Campaign Performance Summary */}
-           {sa360Reports.result.report_data.length > 0 && (
+           {sa360Campaigns.length > 0 && (
              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Performance Summary</h3>
                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                  {(() => {
-                   const totalData = sa360Reports.result.report_data.reduce((acc, campaign) => {
-                     const perf = campaign.performance?.overview || {};
+                   const totalData = sa360Campaigns.reduce((acc, campaign) => {
+                     const perf = campaign.performance?.overview || campaign.performance || {};
+                     const costMicros = perf.cost_micros ?? 0;
                      return {
-                       impressions: acc.impressions + (perf.impressions || 0),
-                       clicks: acc.clicks + (perf.clicks || 0),
-                       cost: acc.cost + (perf.cost || 0),
-                       conversions: acc.conversions + (perf.conversions || 0),
-                       conversions_value: acc.conversions_value + (perf.conversions_value || 0)
+                       impressions: acc.impressions + (perf.impressions ?? 0),
+                       clicks: acc.clicks + (perf.clicks ?? 0),
+                       cost: acc.cost + (perf.cost ?? (costMicros / 1_000_000)),
+                       conversions: acc.conversions + (perf.conversions ?? perf.all_conversions ?? 0),
+                       conversions_value: acc.conversions_value + (perf.conversions_value ?? 0)
                      };
                    }, { impressions: 0, clicks: 0, cost: 0, conversions: 0, conversions_value: 0 });
 
@@ -1417,9 +1648,8 @@ const GoogleAccountDetail = () => {
                {/* SA360 Reports Test Button */}
                <button 
                  onClick={() => {
-                   console.log('Manual SA360 reports API call triggered');
                    dispatch(fetchGoogleSa360Reports({
-                     googleAccountId: account.google_account_id,
+                     googleAccountId: googleAccountId,
                      customerId: account.customer_id,
                      params: {
                        date_from: dateRange.date_from,

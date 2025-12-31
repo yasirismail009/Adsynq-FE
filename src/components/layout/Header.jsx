@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   MagnifyingGlassIcon,
   BellIcon,
@@ -11,8 +12,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { logoutUser } from '../../store/slices/authSlice';
+import LanguageSwitcher from '../ui/LanguageSwitcher';
 
 const Header = ({ onMenuToggle, showMenuButton = false }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
@@ -72,21 +75,24 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
           
           {/* Search Bar */}
           <div className="relative hidden md:block">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-3">
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('common.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-80 pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              className="block w-80 pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rtl:pl-3 rtl:pr-10"
             />
           </div>
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 rtl:space-x-reverse">
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+          
           {/* Notifications */}
           <div className="relative">
             <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative">
@@ -110,8 +116,8 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
 
           {/* User Menu */}
           <div className="relative" ref={userMenuRef}>
-            <div className="flex items-center space-x-3">
-              <div className="hidden sm:block text-right">
+            <div className="flex items-center space-x-3 rtl:space-x-reverse">
+              <div className="hidden sm:block text-right rtl:text-left">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {user ? `${user.name}` : 'User'}
                 </p>
@@ -121,7 +127,7 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
               </div>
               <button 
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rtl:space-x-reverse"
               >
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <UserCircleIcon className="w-6 h-6 text-white" />
@@ -135,14 +141,14 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
+                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 rtl:right-auto rtl:left-0"
               >
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rtl:flex-row-reverse"
                 >
-                  <ArrowRightOnRectangleIcon className="w-4 h-4 mr-3" />
-                  Sign out
+                  <ArrowRightOnRectangleIcon className="w-4 h-4 mr-3 rtl:mr-0 rtl:ml-3" />
+                  {t('common.logout')}
                 </button>
               </motion.div>
             )}
@@ -153,15 +159,15 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
       {/* Mobile Search */}
       <div className="mt-4 md:hidden">
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-3">
             <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
           </div>
           <input
             type="text"
-            placeholder="Search..."
+            placeholder={t('common.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rtl:pl-3 rtl:pr-10"
           />
         </div>
       </div>

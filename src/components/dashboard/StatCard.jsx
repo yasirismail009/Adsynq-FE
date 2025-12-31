@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   ArrowTrendingUpIcon, 
   ArrowTrendingDownIcon,
@@ -21,6 +22,7 @@ const StatCard = ({
   color = 'blue',
   dataSources = []
 }) => {
+  const { t } = useTranslation();
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -48,13 +50,13 @@ const StatCard = ({
       whileHover={{ y: -2 }}
       className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between rtl:flex-row-reverse">
         <div className="flex-1">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
           <p className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
           
           {displayTrend && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
               {displayTrendDirection === 'up' ? (
                 <ArrowTrendingUpIcon className="w-4 h-4 text-green-500" />
               ) : (
@@ -65,19 +67,19 @@ const StatCard = ({
               }`}>
                 {displayTrend}
               </span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">vs last month</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{t('common.vsLastMonth')}</span>
             </div>
           )}
         </div>
         
-        <div className="flex flex-col items-end space-y-2">
+        <div className="flex flex-col items-end space-y-2 rtl:items-start">
           <div className={`p-3 rounded-lg ${iconClasses[color]}`}>
             <Icon className={`w-6 h-6 ${colorClasses[color]}`} />
           </div>
           
                      {/* Data Sources */}
            {dataSources.length > 0 && (
-             <div className="flex items-center space-x-1">
+             <div className="flex items-center space-x-1 rtl:space-x-reverse">
                {dataSources.map((source, index) => {
                  let iconSrc;
                  

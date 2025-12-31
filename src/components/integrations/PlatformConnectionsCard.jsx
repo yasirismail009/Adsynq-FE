@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   UserIcon,
   UsersIcon,
@@ -20,11 +21,13 @@ import {
 } from '../../utils/platform-connections';
 
 const PlatformConnectionsCard = ({ connectionsData }) => {
+  const { t } = useTranslation();
+  
   if (!connectionsData || !connectionsData.result) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="text-center text-gray-500 dark:text-gray-400">
-          No platform connections found
+          {t('common.noPlatformConnectionsFound')}
         </div>
       </div>
     );
@@ -40,7 +43,7 @@ const PlatformConnectionsCard = ({ connectionsData }) => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Connections</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('common.totalConnections')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{total_connections}</p>
             </div>
             <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -52,7 +55,7 @@ const PlatformConnectionsCard = ({ connectionsData }) => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Meta Connections</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('integrations.metaAds')} {t('common.connections')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.total_meta_connections}</p>
             </div>
             <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -68,7 +71,7 @@ const PlatformConnectionsCard = ({ connectionsData }) => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Google Accounts</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('integrations.googleAds')} {t('common.accounts')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.total_google_accounts}</p>
             </div>
             <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">

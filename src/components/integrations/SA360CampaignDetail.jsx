@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import ChartCard from '../dashboard/ChartCard';
 import { 
@@ -35,7 +35,8 @@ import {
   DevicePhoneMobileIcon,
   ChartBarSquareIcon,
   UserGroupIcon,
-  ComputerDesktopIcon
+  ComputerDesktopIcon,
+  TagIcon
 } from '@heroicons/react/24/outline';
 import { 
   fetchGoogleSa360CampaignReport,
@@ -57,7 +58,8 @@ import {
   selectGoogleSa360AudienceTargetingError,
   selectGoogleSa360Assets,
   selectGoogleSa360AssetsLoading,
-  selectGoogleSa360AssetsError
+  selectGoogleSa360AssetsError,
+  selectGoogleSelectedSa360Campaign
 } from '../../store/slices/googleSlice';
 
 // Helper functions for chart colors
@@ -84,6 +86,36 @@ const getChannelTypeColor = (type) => {
 // Global request cache to prevent duplicate requests
 const requestCache = new Map();
 
+// Validation function for API response structure
+const validateCampaignReportResponse = (response) => {
+  if (!response || typeof response !== 'object') {
+    console.warn('Invalid API response: response is not an object');
+    return false;
+  }
+
+  if (response.error) {
+    console.warn('API response indicates error:', response.message);
+    return false;
+  }
+
+  if (!response.result) {
+    console.warn('API response missing result object');
+    return false;
+  }
+
+  if (!response.result.campaign) {
+    console.warn('API response missing campaign data');
+    return false;
+  }
+
+  if (!response.result.metrics) {
+    console.warn('API response missing metrics data');
+    return false;
+  }
+
+  return true;
+};
+
 // Clean up old cache entries every 30 seconds
 setInterval(() => {
   const now = Date.now();
@@ -109,6 +141,12 @@ const tabs = [
     description: 'Gender and demographic breakdown'
   },
   {
+    id: 'locations',
+    name: 'Locations',
+    icon: GlobeAltIcon,
+    description: 'Geographic performance by city'
+  },
+  {
     id: 'devices',
     name: 'Devices',
     icon: ComputerDesktopIcon,
@@ -132,10 +170,12 @@ const tabs = [
  * - Handles React StrictMode double-invocation in development
  */
 const SA360CampaignDetail = () => {
-  const { campaignId, googleAccountId, customerId } = useParams();
+  const { googleAccountId,campaignId, customerId } = useParams();
+  const [searchParams] = useSearchParams();
+  const date = searchParams.get('date');
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+  console.log("date",date)
   // Tab state
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -165,15 +205,15 @@ const SA360CampaignDetail = () => {
   const sa360Assets = useSelector(selectGoogleSa360Assets);
   const sa360AssetsLoading = useSelector(selectGoogleSa360AssetsLoading);
   const sa360AssetsError = useSelector(selectGoogleSa360AssetsError);
+  const selectedCampaign = useSelector(selectGoogleSelectedSa360Campaign);
   
   // Local state for dynamic date range - use useMemo to prevent recreation on every render
   const initialDateRange = useMemo(() => {
     const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    
+
+    const dateObject = new Date(date);
     return {
-      date_from: thirtyDaysAgo.toISOString().split('T')[0],
+      date_from: dateObject.toISOString().split('T')[0],
       date_to: today.toISOString().split('T')[0]
     };
   }, []);
@@ -513,40 +553,73 @@ const SA360CampaignDetail = () => {
     }
   }, [sa360AssetsLoading, campaignId, googleAccountId, customerId]);
 
-  // Use campaign report data directly
+  // Use campaign report data directly, falling back to the campaign saved in Redux
   const campaignData = useMemo(() => {
-    if (!sa360CampaignReport?.result?.campaign) return null;
-    return sa360CampaignReport.result.campaign; // Get campaign data directly
-  }, [sa360CampaignReport]);
+    // First validate the response structure
+    if (!validateCampaignReportResponse(sa360CampaignReport)) {
+      console.log('Campaign report response validation failed, falling back to Redux store');
+    } else if (sa360CampaignReport?.result?.campaign) {
+      const campaign = sa360CampaignReport.result.campaign;
+
+      // Validate required campaign fields
+      const requiredFields = ['id', 'name', 'status'];
+      const missingFields = requiredFields.filter(field => !campaign[field]);
+
+      if (missingFields.length > 0) {
+        console.warn('Campaign data missing required fields:', missingFields);
+      }
+
+      return campaign;
+    }
+
+    // Fallback: use the campaign saved from GoogleAccountDetail (if it matches this campaign)
+    if (selectedCampaign?.campaign && String(selectedCampaign.campaignId) === String(campaignId)) {
+      console.log('Using fallback campaign data from Redux store');
+      return selectedCampaign.campaign;
+    }
+
+    return null;
+  }, [sa360CampaignReport, selectedCampaign, campaignId]);
 
   // Prepare chart data for the specific campaign
   const chartData = useMemo(() => {
-    if (!campaignData || !sa360CampaignReport?.result?.performance) return {};
+    if (!campaignData || !sa360CampaignReport?.result?.metrics) return {};
 
     // Use actual performance data from the API response
-    const performance = sa360CampaignReport.result.performance.overview || {};
+    const performance = sa360CampaignReport.result.metrics || {};
     
+    // Safe access helper function
+    const safeNumber = (value, defaultValue = 0) => {
+      const num = Number(value);
+      return isNaN(num) ? defaultValue : num;
+    };
+
     // Performance metrics data
     const performanceData = [
-      { name: 'Impressions', value: performance.impressions || 0 },
-      { name: 'Clicks', value: performance.clicks || 0 },
-      { name: 'Conversions', value: performance.conversions || 0 },
-      { name: 'Cost', value: performance.cost || 0 }
+      { name: 'Impressions', value: safeNumber(performance.impressions) },
+      { name: 'Clicks', value: safeNumber(performance.clicks) },
+      { name: 'Conversions', value: safeNumber(performance.conversions) },
+      { name: 'Cost', value: safeNumber(performance.cost) }
     ];
 
     // Financial metrics data
     const financialData = [
-      { name: 'Cost', value: performance.cost || 0 },
-      { name: 'Conversions Value', value: performance.conversions_value || 0 },
-      { name: 'Average CPC', value: performance.average_cpc || 0 },
-      { name: 'Average CPM', value: performance.average_cpm || 0 }
+      { name: 'Cost', value: safeNumber(performance.cost) },
+      { name: 'Conversions Value', value: safeNumber(performance.conversions_value) },
+      { name: 'Average CPC', value: safeNumber(performance.average_cpc) },
+      { name: 'Average CPM', value: safeNumber(performance.average_cpm) }
     ];
 
     // Engagement metrics data
+    const clicks = safeNumber(performance.clicks);
+    const conversions = safeNumber(performance.conversions);
+    const cost = safeNumber(performance.cost);
+    const conversionsValue = safeNumber(performance.conversions_value);
+
     const engagementData = [
-      { name: 'CTR', value: (performance.ctr || 0) * 100 },
-      { name: 'Conversion Rate', value: performance.clicks > 0 ? (performance.conversions / performance.clicks) * 100 : 0 },
-      { name: 'ROAS', value: performance.cost > 0 ? (performance.conversions_value / performance.cost) : 0 }
+      { name: 'CTR', value: safeNumber(performance.ctr) * 100 },
+      { name: 'Conversion Rate', value: clicks > 0 ? (conversions / clicks) * 100 : 0 },
+      { name: 'ROAS', value: cost > 0 ? (conversionsValue / cost) : 0 }
     ];
 
     // Time series data (simulated for demo)
@@ -570,21 +643,33 @@ const SA360CampaignDetail = () => {
 
   // Calculate performance summary
   const performanceSummary = useMemo(() => {
-    if (!campaignData || !sa360CampaignReport?.result?.performance) return null;
-    
+    if (!campaignData || !sa360CampaignReport?.result?.metrics) return null;
+
     // Use actual performance data from the API response
-    const perf = sa360CampaignReport.result.performance.overview || {};
+    const perf = sa360CampaignReport.result.metrics || {};
+
+    // Safe access helper function
+    const safeNumber = (value, defaultValue = 0) => {
+      const num = Number(value);
+      return isNaN(num) ? defaultValue : num;
+    };
+
+    const totalClicks = safeNumber(perf.clicks);
+    const totalConversions = safeNumber(perf.conversions);
+    const totalCost = safeNumber(perf.cost);
+    const totalConversionValue = safeNumber(perf.conversions_value);
+
     return {
-      totalImpressions: perf.impressions || 0,
-      totalClicks: perf.clicks || 0,
-      totalCost: perf.cost || 0,
-      totalConversions: perf.conversions || 0,
-      totalConversionValue: perf.conversions_value || 0,
-      averageCPC: perf.average_cpc || 0,
-      averageCPM: perf.average_cpm || 0,
-      ctr: perf.ctr || 0,
-      roas: perf.cost > 0 ? (perf.conversions_value / perf.cost) : 0,
-      conversionRate: perf.clicks > 0 ? (perf.conversions / perf.clicks) : 0
+      totalImpressions: safeNumber(perf.impressions),
+      totalClicks,
+      totalCost,
+      totalConversions,
+      totalConversionValue,
+      averageCPC: safeNumber(perf.average_cpc),
+      averageCPM: safeNumber(perf.average_cpm),
+      ctr: safeNumber(perf.ctr),
+      roas: totalCost > 0 ? (totalConversionValue / totalCost) : 0,
+      conversionRate: totalClicks > 0 ? (totalConversions / totalClicks) : 0
     };
   }, [campaignData, sa360CampaignReport]);
 
@@ -592,6 +677,12 @@ const SA360CampaignDetail = () => {
   const demographicData = useMemo(() => {
     if (!sa360DemographicData?.result?.demographic_data?.[0]) return null;
     return sa360DemographicData.result.demographic_data[0];
+  }, [sa360DemographicData]);
+
+  // Location data processing
+  const locationData = useMemo(() => {
+    if (!sa360DemographicData?.result?.location_data) return null;
+    return sa360DemographicData.result.location_data;
   }, [sa360DemographicData]);
 
   // Demographic chart data
@@ -695,26 +786,7 @@ const SA360CampaignDetail = () => {
     return sa360Assets.result.campaigns[campaignId];
   }, [sa360Assets, campaignId]);
 
-  // Assets chart data
-  const assetsChartData = useMemo(() => {
-    if (!assetsData?.assets) return [];
-    
-    return assetsData.assets.map(asset => ({
-      name: asset.asset_name || `Asset ${asset.asset_id}`,
-      asset_id: asset.asset_id,
-      asset_type: asset.asset_type,
-      status: asset.campaign_asset_status,
-      impressions: asset.metrics?.impressions || 0,
-      clicks: asset.metrics?.clicks || 0,
-      conversions: asset.metrics?.conversions || 0,
-      cost: asset.metrics?.average_cost || 0,
-      ctr: asset.metrics?.interaction_rate || 0,
-      average_cpc: asset.metrics?.average_cpc || 0,
-      video_views: asset.metrics?.video_views || 0,
-      video_view_rate: asset.metrics?.video_view_rate || 0,
-      interactions: asset.metrics?.interactions || 0
-    }));
-  }, [assetsData]);
+
 
   // Assets summary data
   const assetsSummary = useMemo(() => {
@@ -761,7 +833,7 @@ const SA360CampaignDetail = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  ${performanceSummary.totalCost.toFixed(2)}
+                  {sa360CampaignReport?.result?.currency?.code || '$'}{performanceSummary.totalCost.toFixed(2)}
                 </p>
               </div>
               <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
@@ -806,7 +878,7 @@ const SA360CampaignDetail = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg CPC</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  ${performanceSummary.averageCPC.toFixed(2)}
+                  {sa360CampaignReport?.result?.currency?.code || '$'}{performanceSummary.averageCPC.toFixed(2)}
                 </p>
               </div>
               <CreditCardIcon className="h-8 w-8 text-orange-500" />
@@ -924,10 +996,10 @@ const SA360CampaignDetail = () => {
             <ChartCard
               title="Financial Area Chart"
               subtitle="Cost trends with gradient area fills"
-              data={chartData.timeSeriesData.map(item => ({
+              data={chartData?.timeSeriesData?.length > 0 ? chartData.timeSeriesData.map(item => ({
                 name: item.name,
                 cost: item.cost
-              }))}
+              })): []}
               type="area"
               height={300}
               gradient={true}
@@ -988,7 +1060,7 @@ const SA360CampaignDetail = () => {
                 
                 <div className="text-center">
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    ${(sa360Assets.result.overall_summary.total_cost || 0).toFixed(2)}
+                    {(sa360Assets.result.currency?.code || sa360CampaignReport?.result?.currency?.code || '$')}{(sa360Assets.result.overall_summary.total_cost || 0).toFixed(2)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost</p>
                 </div>
@@ -1056,166 +1128,9 @@ const SA360CampaignDetail = () => {
           </motion.div>
         )}
 
-        {/* Campaign Details Table */}
-       <motion.div
-         initial={{ opacity: 0, y: 20 }}
-         animate={{ opacity: 1, y: 0 }}
-         className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-       >
-         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Campaign Details</h3>
-         </div>
-         
-         <div className="overflow-x-auto">
-           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-               <tr>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                   Campaign ID
-                 </td>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                   {campaignData.id}
-                 </td>
-               </tr>
-               <tr>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                   Campaign Name
-                 </td>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                   {campaignData.name}
-                 </td>
-               </tr>
-               <tr>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                   Status
-                 </td>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                     campaignData.status === 'ENABLED' 
-                       ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                       : campaignData.status === 'PAUSED'
-                       ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                       : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                   }`}>
-                     {campaignData.status}
-                   </span>
-                 </td>
-               </tr>
-               <tr>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                   Channel Type
-                 </td>
-                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                     campaignData.advertising_channel_type === 'SEARCH' 
-                       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-                       : campaignData.advertising_channel_type === 'DISPLAY'
-                       ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
-                       : campaignData.advertising_channel_type === 'VIDEO'
-                       ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400'
-                       : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
-                   }`}>
-                     {campaignData.advertising_channel_type}
-                   </span>
-                 </td>
-               </tr>
-               {campaignData.advertising_channel_sub_type && (
-                 <tr>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                     Channel Sub Type
-                   </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                     {campaignData.advertising_channel_sub_type}
-                   </td>
-                 </tr>
-               )}
-               {campaignData.bidding_strategy_type && (
-                 <tr>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                     Bidding Strategy
-                   </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                     {campaignData.bidding_strategy_type}
-                   </td>
-                 </tr>
-               )}
-               {campaignData.start_date && (
-                 <tr>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                     Start Date
-                   </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                     {campaignData.start_date}
-                   </td>
-                 </tr>
-               )}
-               {campaignData.end_date && (
-                 <tr>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                     End Date
-                   </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                     {campaignData.end_date}
-                   </td>
-                 </tr>
-               )}
-               {campaignData.budget && (
-                 <tr>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                     Budget
-                   </td>
-                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                     {campaignData.budget.amount} {sa360CampaignReport?.result?.currency?.code} ({campaignData.budget.delivery_method})
-                   </td>
-                 </tr>
-               )}
-              {sa360CampaignReport?.result?.currency && (
-                <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    Currency
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {sa360CampaignReport.result.currency.code} ({sa360CampaignReport.result.currency.name})
-                  </td>
-                </tr>
-              )}
-              {sa360CampaignReport?.result?.date_range && (
-                <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    Date Range
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {sa360CampaignReport.result.date_range.from} to {sa360CampaignReport.result.date_range.to}
-                  </td>
-                </tr>
-              )}
-              {sa360CampaignReport?.result?.google_account && (
-                <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    Google Account
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {sa360CampaignReport.result.google_account.name} ({sa360CampaignReport.result.google_account.email})
-                  </td>
-                </tr>
-              )}
-              {sa360CampaignReport?.result?.customer && (
-                <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    Customer
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {sa360CampaignReport.result.customer.descriptive_name} (ID: {sa360CampaignReport.result.customer.id})
-                  </td>
-                </tr>
-              )}
-             </tbody>
-           </table>
-         </div>
-       </motion.div>
 
                {/* Performance Metrics Table */}
-        {sa360CampaignReport?.result?.performance && (
+        {sa360CampaignReport?.result?.metrics && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1224,107 +1139,109 @@ const SA360CampaignDetail = () => {
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Performance Metrics</h3>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {/* Overview Metrics */}
-                  {sa360CampaignReport.result.performance.overview && (
-                    <>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Impressions
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.overview.impressions?.toLocaleString() || 0}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Clicks
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.overview.clicks?.toLocaleString() || 0}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Cost
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.overview.cost?.toFixed(2) || 0} {sa360CampaignReport.result.currency?.code}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Conversions
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.overview.conversions?.toLocaleString() || 0}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          CTR
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {((sa360CampaignReport.result.performance.overview.ctr || 0) * 100).toFixed(2)}%
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Average CPC
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {(sa360CampaignReport.result.performance.overview.average_cpc || 0).toFixed(2)} {sa360CampaignReport.result.currency?.code}
-                        </td>
-                      </tr>
-                    </>
-                  )}
+                  {/* Core Metrics */}
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Impressions
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.impressions || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Clicks
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.clicks || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Cost
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      ${(sa360CampaignReport.result.metrics.cost || 0).toFixed(2)} {sa360CampaignReport.result.currency?.code}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Conversions
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.conversions || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      All Conversions
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.all_conversions || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      CTR
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {((sa360CampaignReport.result.metrics.ctr || 0) * 100).toFixed(2)}%
+                    </td>
+                  </tr>
 
-                  {/* Video Metrics */}
-                  {sa360CampaignReport.result.performance.video_metrics && (
-                    <>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Video Views
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.video_metrics.video_views?.toLocaleString() || 0}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Video View Rate
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {((sa360CampaignReport.result.performance.video_metrics.video_view_rate || 0) * 100).toFixed(2)}%
-                        </td>
-                      </tr>
-                    </>
-                  )}
-
-                  {/* Engagement Metrics */}
-                  {sa360CampaignReport.result.performance.engagement_metrics && (
-                    <>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Interactions
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {sa360CampaignReport.result.performance.engagement_metrics.interactions?.toLocaleString() || 0}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          Interaction Rate
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {((sa360CampaignReport.result.performance.engagement_metrics.interaction_rate || 0) * 100).toFixed(2)}%
-                        </td>
-                      </tr>
-                    </>
-                  )}
+                  {/* Additional Metrics */}
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Interactions
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.interactions || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Engagements
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.engagements || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Orders
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.orders || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Phone Calls
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.phone_calls || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Units Sold
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {(sa360CampaignReport.result.metrics.units_sold || 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      Bounce Rate
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {((sa360CampaignReport.result.metrics.bounce_rate || 0) * 100).toFixed(2)}%
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1362,11 +1279,11 @@ const SA360CampaignDetail = () => {
                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
-                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.cost.toFixed(2)}</td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
-                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
-                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.conversions_value.toFixed(2)}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.average_cpc.toFixed(2)}</td>
+                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.conversions_value.toFixed(2)}</td>
                      </tr>
                    ))}
                  </tbody>
@@ -1416,7 +1333,7 @@ const SA360CampaignDetail = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    ${demographicData.total_cost?.toFixed(2) || 0}
+                    {sa360CampaignReport?.result?.currency?.code || '$'}{(demographicData.total_cost || 0).toFixed(2)}
                   </p>
                 </div>
                 <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
@@ -1519,10 +1436,10 @@ const SA360CampaignDetail = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.cost.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cpc.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.cpc.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1548,7 +1465,237 @@ const SA360CampaignDetail = () => {
     </div>
   );
 
+  const LocationsTab = () => (
+    <div className="space-y-8">
+      {locationData && locationData.length > 0 ? (
+        <>
+          {/* Summary Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Cities</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {locationData.length}
+                  </p>
+                </div>
+                <GlobeAltIcon className="h-8 w-8 text-blue-500" />
+              </div>
+            </div>
 
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Impressions</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {locationData.reduce((sum, location) => sum + (location.impressions || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+                <EyeIcon className="h-8 w-8 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Clicks</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {locationData.reduce((sum, location) => sum + (location.clicks || 0), 0).toLocaleString()}
+                  </p>
+                </div>
+                <CursorArrowRaysIcon className="h-8 w-8 text-purple-500" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Cost</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {sa360CampaignReport?.result?.currency?.code || '$'}{locationData.reduce((sum, location) => sum + (location.cost || 0), 0).toFixed(2)}
+                  </p>
+                </div>
+                <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Location Performance Chart */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Location Impressions"
+              subtitle="Impressions by city"
+              data={locationData.map(location => ({
+                name: location.location_name,
+                value: location.impressions || 0
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+
+            <ChartCard
+              title="Location Clicks"
+              subtitle="Clicks by city"
+              data={locationData.map(location => ({
+                name: location.location_name,
+                value: location.clicks || 0
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+          </motion.div>
+
+          {/* Location Performance Table */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Location Performance</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Performance breakdown by city and region
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Impressions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Clicks
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Cost
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Conversions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      CTR
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      CPC
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Conv. Rate
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {locationData.map((location, index) => (
+                    <tr key={index}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center">
+                              <span className="text-xs font-medium text-white">
+                                {location.location_name.charAt(0)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {location.location_name}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {location.canonical_name}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {(location.impressions || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {(location.clicks || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {sa360CampaignReport?.result?.currency?.code || '$'}{(location.cost || 0).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {(location.all_conversions || 0).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {(location.ctr || 0).toFixed(2)}%
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {sa360CampaignReport?.result?.currency?.code || '$'}{(location.cpc || 0).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {(location.conversion_rate || 0).toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+
+          {/* Location Insights */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            <ChartCard
+              title="Location CTR Comparison"
+              subtitle="Click-through rates by location"
+              data={locationData.map(location => ({
+                name: location.location_name,
+                value: location.ctr || 0
+              }))}
+              type="bar"
+              height={300}
+              gradient={true}
+            />
+
+            <ChartCard
+              title="Location Cost Distribution"
+              subtitle="Cost breakdown by city"
+              data={locationData.map(location => ({
+                name: location.location_name,
+                value: location.cost || 0
+              }))}
+              type="pie"
+              height={300}
+              gradient={true}
+            />
+          </motion.div>
+        </>
+      ) : (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Location data not available
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                No location performance data available for this campaign.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const DevicesTab = () => (
     <div className="space-y-8">
@@ -1589,7 +1736,7 @@ const SA360CampaignDetail = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    ${deviceTargetingData.reduce((sum, device) => sum + (device.cost || 0), 0).toFixed(2)}
+                    {sa360CampaignReport?.result?.currency?.code || '$'}{deviceTargetingData.reduce((sum, device) => sum + (device.cost || 0), 0).toFixed(2)}
                   </p>
                 </div>
                 <CurrencyDollarIcon className="h-8 w-8 text-yellow-500" />
@@ -1672,11 +1819,11 @@ const SA360CampaignDetail = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.cost.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.cost.toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.ctr.toFixed(2)}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.conversions_value.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.average_cpc.toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{sa360CampaignReport?.result?.currency?.code || '$'}{item.conversions_value.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1743,14 +1890,14 @@ const SA360CampaignDetail = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Assets</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {assetsSummary?.total_assets?.toLocaleString() || 0}
+                    {assetsSummary?.total_assets || 0}
                   </p>
                 </div>
                 <PhotoIcon className="h-8 w-8 text-blue-500" />
@@ -1760,81 +1907,28 @@ const SA360CampaignDetail = () => {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Impressions</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Asset Types</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {assetsSummary?.total_impressions?.toLocaleString() || 0}
+                    {Object.keys(assetsSummary?.by_asset_type || {}).length}
                   </p>
                 </div>
-                <EyeIcon className="h-8 w-8 text-green-500" />
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Clicks</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {assetsSummary?.total_clicks?.toLocaleString() || 0}
-                  </p>
-                </div>
-                <CursorArrowRaysIcon className="h-8 w-8 text-yellow-500" />
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Conversions</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {assetsSummary?.total_conversions?.toLocaleString() || 0}
-                  </p>
-                </div>
-                <ShoppingCartIcon className="h-8 w-8 text-purple-500" />
+                <TagIcon className="h-8 w-8 text-green-500" />
               </div>
             </div>
           </motion.div>
 
           {/* Assets Performance Charts */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-          >
-            <ChartCard
-              title="Assets Performance"
-              subtitle="Performance by asset"
-              data={assetsChartData.map(item => ({
-                name: item.name,
-                value: item.impressions
-              }))}
-              type="bar"
-              height={300}
-              gradient={true}
-            />
-            
-            <ChartCard
-              title="Assets Cost Analysis"
-              subtitle="Cost and conversions by asset"
-              data={assetsChartData.map(item => ({
-                name: item.name,
-                cost: item.cost,
-                conversions: item.conversions
-              }))}
-              type="line"
-              height={300}
-              gradient={true}
-              multiLine={true}
-            />
-          </motion.div>
-
-          {/* Assets Performance Table */}
+          {/* Assets List */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
           >
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Assets Performance Breakdown</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Campaign Assets</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {assetsData?.assets?.length || 0} assets found for this campaign
+              </p>
             </div>
             
             <div className="overflow-x-auto">
@@ -1844,51 +1938,59 @@ const SA360CampaignDetail = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Asset</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CTR</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">CPC</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Video Views</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Details</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {assetsChartData.map((item, index) => (
-                    <tr key={index} className={item.impressions === 0 ? 'bg-gray-50 dark:bg-gray-700/50' : ''}>
+                  {assetsData?.assets?.map((asset, index) => (
+                    <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {item.name}
-                        <div className="text-xs text-gray-500 dark:text-gray-400">ID: {item.asset_id}</div>
+                        {asset.asset_name || `Asset ${asset.asset_id}`}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">ID: {asset.asset_id}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          item.asset_type === 'SITELINK' 
+                          asset.asset_type === 'SITELINK' 
                             ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
-                            : item.asset_type === 'IMAGE'
+                            : asset.asset_type === 'IMAGE'
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : item.asset_type === 'VIDEO'
+                            : asset.asset_type === 'VIDEO'
                             ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
                             : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
                         }`}>
-                          {item.asset_type}
+                          {asset.asset_type}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          item.status === 'ENABLED' 
+                          asset.campaign_asset_status === 'ENABLED' 
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : item.status === 'PAUSED'
+                            : asset.campaign_asset_status === 'PAUSED'
                             ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
                             : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                         }`}>
-                          {item.status}
+                          {asset.campaign_asset_status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.impressions.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.clicks.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.conversions.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{(item.ctr * 100).toFixed(2)}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${item.average_cpc.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{item.video_views.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {asset.asset_type === 'SITELINK' && asset.sitelink_details ? (
+                          <div className="space-y-1">
+                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                              <span className="font-medium">Link:</span> {asset.sitelink_details.link_text}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {asset.sitelink_details.description1}
+                            </div>
+                            {asset.sitelink_details.description2 && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {asset.sitelink_details.description2}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">No additional details</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1897,37 +1999,7 @@ const SA360CampaignDetail = () => {
           </motion.div>
 
           {/* Assets Insights */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
-          >
-            <ChartCard
-              title="Assets CTR Comparison"
-              subtitle="Click-through rates by asset"
-              data={assetsChartData.map(item => ({
-                name: item.name,
-                value: item.ctr * 100
-              }))}
-              type="bar"
-              height={300}
-              gradient={true}
-            />
-            
-            <ChartCard
-              title="Assets Video Performance"
-              subtitle="Video views and interaction rates by asset"
-              data={assetsChartData.map(item => ({
-                name: item.name,
-                video_views: item.video_views,
-                interactions: item.interactions
-              }))}
-              type="line"
-              height={300}
-              gradient={true}
-              multiLine={true}
-            />
-          </motion.div>
+
 
           {/* Asset Type Breakdown */}
           {assetsSummary?.by_asset_type && (
@@ -1946,9 +2018,7 @@ const SA360CampaignDetail = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Asset Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Count</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Impressions</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clicks</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Conversions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1968,9 +2038,11 @@ const SA360CampaignDetail = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.count}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.impressions.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.clicks.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{data.conversions.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                            Active
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2006,6 +2078,8 @@ const SA360CampaignDetail = () => {
         return <OverviewTab />;
       case 'demographics':
         return <DemographicsTab />;
+      case 'locations':
+        return <LocationsTab />;
       case 'devices':
         return <DevicesTab />;
       case 'assets':
@@ -2207,6 +2281,618 @@ const SA360CampaignDetail = () => {
             </div>
           )}
         </motion.div>
+
+        {/* Campaign Details Section */}
+        {campaignData && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl p-8 border border-blue-200 dark:border-gray-600 shadow-lg">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Campaign Overview
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Detailed information about your SA360 campaign
+                  </p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold ${
+                    campaignData.status === 'ENABLED'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                      : campaignData.status === 'PAUSED'
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                      campaignData.status === 'ENABLED'
+                        ? 'bg-green-500'
+                        : campaignData.status === 'PAUSED'
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                    }`}></div>
+                    {campaignData.status}
+                  </span>
+                  <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold ${
+                    campaignData.advertising_channel_type === 'SEARCH'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                      : campaignData.advertising_channel_type === 'DISPLAY'
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                      : campaignData.advertising_channel_type === 'VIDEO'
+                      ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400'
+                      : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
+                  }`}>
+                    {campaignData.advertising_channel_type}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {/* Campaign ID */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Campaign ID</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">{campaignData.id}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                      <TagIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Campaign Name */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Campaign Name</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{campaignData.name}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
+                      <BuildingOfficeIcon className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Start Date */}
+                {campaignData.start_date && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Start Date</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{campaignData.start_date}</p>
+                      </div>
+                      <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center">
+                        <CalendarIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* End Date */}
+                {campaignData.end_date && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">End Date</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{campaignData.end_date}</p>
+                      </div>
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                        <ClockIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Budget */}
+                {campaignData.budget && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Budget</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">
+                          {campaignData.budget.amount} {sa360CampaignReport?.result?.currency?.code}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {campaignData.budget.delivery_method}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center">
+                        <CreditCardIcon className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Currency */}
+                {sa360CampaignReport?.result?.currency && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Currency</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">
+                          {sa360CampaignReport.result.currency.code}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {sa360CampaignReport.result.currency.name}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/20 rounded-full flex items-center justify-center">
+                        <CurrencyDollarIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Date Range */}
+                {sa360CampaignReport?.result?.date_range && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Date Range</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          {sa360CampaignReport.result.date_range.from}
+                        </p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                          to {sa360CampaignReport.result.date_range.to}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 bg-cyan-100 dark:bg-cyan-900/20 rounded-full flex items-center justify-center">
+                        <CalendarIcon className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Account */}
+                {sa360CampaignReport?.result?.google_account && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Google Account</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                          {sa360CampaignReport.result.google_account.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                          {sa360CampaignReport.result.google_account.email}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 bg-teal-100 dark:bg-teal-900/20 rounded-full flex items-center justify-center">
+                        <UserIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bidding Strategy */}
+                {campaignData.bidding_strategy_type && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Bidding Strategy</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">
+                          {campaignData.bidding_strategy_type}
+                        </p>
+                      </div>
+                      <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center">
+                        <CogIcon className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer ID */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Customer ID</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {sa360CampaignReport?.result?.customer_id || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 bg-pink-100 dark:bg-pink-900/20 rounded-full flex items-center justify-center">
+                      <UsersIcon className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Comprehensive Metrics Dashboard */}
+        {sa360CampaignReport?.result && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 space-y-8"
+          >
+
+            {/* Performance Metrics Section */}
+            {sa360CampaignReport.result.metrics && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <ChartBarIcon className="w-6 h-6 mr-3 text-blue-600 dark:text-blue-400" />
+                    Performance Metrics
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Core campaign performance indicators</p>
+                </div>
+
+                <div className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {(sa360CampaignReport.result.metrics.impressions || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Impressions</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {(sa360CampaignReport.result.metrics.clicks || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Clicks</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {((sa360CampaignReport.result.metrics.ctr || 0) * 100).toFixed(2)}%
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">CTR</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {(sa360CampaignReport.result.metrics.conversions || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Conversions</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {(sa360CampaignReport.result.metrics.all_conversions || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">All Conversions</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {(sa360CampaignReport.result.metrics.interactions || 0).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Interactions</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Financial Metrics Section */}
+            {sa360CampaignReport.result.financial_metrics && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <CurrencyDollarIcon className="w-6 h-6 mr-3 text-green-600 dark:text-green-400" />
+                    Financial Metrics
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Cost and revenue performance</p>
+                </div>
+
+                <div className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {sa360CampaignReport.result.currency?.code || '$'}{(sa360CampaignReport.result.financial_metrics.cost || 0).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Total Cost</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {sa360CampaignReport.result.currency?.code || '$'}{(sa360CampaignReport.result.financial_metrics.cpc || 0).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Cost per Click</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {sa360CampaignReport.result.currency?.code || '$'}{(sa360CampaignReport.result.financial_metrics.cpm || 0).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Cost per Mille</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {sa360CampaignReport.result.currency?.code || '$'}{(sa360CampaignReport.result.financial_metrics.cost_per_conversion || 0).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Cost per Conversion</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Engagement & Active View Metrics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Engagement Metrics */}
+              {sa360CampaignReport.result.engagement_metrics && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                      <UserIcon className="w-6 h-6 mr-3 text-purple-600 dark:text-purple-400" />
+                      Engagement Metrics
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">User interaction and engagement</p>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Engagements</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.engagement_metrics.engagements || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Interactions</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.engagement_metrics.interactions || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Calls</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.engagement_metrics.phone_calls || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Impressions</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.engagement_metrics.phone_impressions || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Engagement Rate</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.engagement_metrics.engagement_rate || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Interaction Rate</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.engagement_metrics.interaction_rate || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Active View Metrics */}
+              {sa360CampaignReport.result.active_view_metrics && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                      <EyeIcon className="w-6 h-6 mr-3 text-orange-600 dark:text-orange-400" />
+                      Active View Metrics
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Viewability and measurability</p>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active View Impressions</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.active_view_metrics.active_view_impressions || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Measurable Impressions</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.active_view_metrics.active_view_measurable_impressions || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active View CTR</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.active_view_metrics.active_view_ctr || 0) / 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Measurability</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.active_view_metrics.active_view_measurability || 0) / 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Viewability</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.active_view_metrics.active_view_viewability || 0) / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Impression Share & Location Conversion Metrics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Impression Share Metrics */}
+              {sa360CampaignReport.result.impression_share_metrics && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                      <ChartPieIcon className="w-6 h-6 mr-3 text-cyan-600 dark:text-cyan-400" />
+                      Impression Share
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Market share and availability</p>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Absolute Top Impression %</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.impression_share_metrics.absolute_top_impression_percentage || 0) / 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Content Impression Share</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.impression_share_metrics.content_impression_share || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Content Budget Lost Share</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.impression_share_metrics.content_budget_lost_impression_share || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Content Rank Lost Share</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {((sa360CampaignReport.result.impression_share_metrics.content_rank_lost_impression_share || 0) * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Location Conversion Metrics */}
+              {sa360CampaignReport.result.location_conversion_metrics && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                      <GlobeAltIcon className="w-6 h-6 mr-3 text-pink-600 dark:text-pink-400" />
+                      Location Conversions
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Location-based conversion actions</p>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Click to Call</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.click_to_call || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Directions</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.directions || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Menu</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.menu || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Order</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.order || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Store Visit</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.store_visit || 0).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Store Website</span>
+                        <span className="text-lg font-bold text-gray-900 dark:text-white">
+                          {(sa360CampaignReport.result.location_conversion_metrics.store_website || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Performance Trends */}
+            {sa360CampaignReport.result.performance_trends && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <ArrowTrendingUpIcon className="w-6 h-6 mr-3 text-indigo-600 dark:text-indigo-400" />
+                    Performance Trends
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Campaign performance changes over time</p>
+                </div>
+
+                <div className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className={`text-2xl font-bold ${sa360CampaignReport.result.performance_trends.impressions_trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {sa360CampaignReport.result.performance_trends.impressions_trend >= 0 ? '+' : ''}
+                        {sa360CampaignReport.result.performance_trends.impressions_trend?.toFixed(2)}%
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Impressions Trend</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className={`text-2xl font-bold ${sa360CampaignReport.result.performance_trends.clicks_trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {sa360CampaignReport.result.performance_trends.clicks_trend >= 0 ? '+' : ''}
+                        {sa360CampaignReport.result.performance_trends.clicks_trend?.toFixed(2)}%
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Clicks Trend</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className={`text-2xl font-bold ${sa360CampaignReport.result.performance_trends.cost_trend >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {sa360CampaignReport.result.performance_trends.cost_trend >= 0 ? '+' : ''}
+                        {sa360CampaignReport.result.performance_trends.cost_trend?.toFixed(2)}%
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Cost Trend</p>
+                    </div>
+
+                    <div className="text-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className={`text-2xl font-bold ${sa360CampaignReport.result.performance_trends.conversions_trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {sa360CampaignReport.result.performance_trends.conversions_trend >= 0 ? '+' : ''}
+                        {sa360CampaignReport.result.performance_trends.conversions_trend?.toFixed(2)}%
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Conversions Trend</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Data period: {sa360CampaignReport.result.performance_trends.period_days} days
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </motion.div>
+        )}
 
         {/* Tabs Navigation */}
         <motion.div

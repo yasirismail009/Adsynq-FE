@@ -2,368 +2,270 @@ import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit'
 import { apiService } from '../../services/api';
 
 // Async thunks for API calls
-// Mock data for development (matches API response format)
-const mockIntegrations = [
-  {
-    id: "google",
-    title: "Google Ads",
-    description: "Manage Google Ads campaigns, track performance, and optimize ad spend",
-    domain: "yasirismail321@gmail.com",
-    integrations: [
-      {
-        type: "google",
-        name: "Google Ads",
-        status: "needs_refresh",
-        lastSync: null
-      }
-    ],
-    metrics: {
-      campaigns: 0,
-      ads: 0,
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0
-    },
-    status: "needs_refresh",
-    paymentStatus: "paid",
-    createdDate: "30/06/2025",
-    updatedDate: "18/07/2025",
-    userData: {
-      name: "Muhammad Yasir Ismail",
-      email: "yasirismail321@gmail.com",
-      image: "https://lh3.googleusercontent.com/a/ACg8ocKTLSKHweADG5F8trpI1J6EtPHaxLZkOCTCtWgAaHw5jelNeuxh=s96-c"
-    },
-    platformData: {
-      note: "Found 1 Google account(s) but all are inactive. Please reconnect your Google account.",
-      connectionHealth: "needs_refresh",
-      tokenStatus: "expired",
-      tokenExpiresAt: "2025-07-09T07:11:53.132316+00:00",
-      needsRefresh: false,
-      syncStatus: "never_synced",
-      availablePlatforms: ["google_ads", "search_ads_360"],
-      oauthScopes: [
-        "https://www.googleapis.com/auth/admanager",
-        "https://www.googleapis.com/auth/doubleclicksearch",
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/adwords",
-        "openid"
-      ],
-      accountAgeDays: 18,
-      connectionSummary: {
-        status: "disconnected",
-        tokenValid: false,
-        hasRefreshToken: true,
-        platformsCount: 2,
-        lastActivity: "2025-07-18T20:41:01.270451+00:00"
-      }
-    }
-  },
-  {
-    id: "meta",
-    title: "Meta Ads",
-    description: "Manage Facebook and Instagram advertising campaigns",
-    domain: "business@example.com",
-    integrations: [
-      {
-        type: "meta",
-        name: "Meta Ads",
-        status: "active",
-        lastSync: "2025-01-27T10:30:00Z"
-      }
-    ],
-    metrics: {
-      campaigns: 3,
-      ads: 8,
-      spend: 10200,
-      impressions: 300000,
-      clicks: 9000,
-      conversions: 450
-    },
-    status: "active",
-    paymentStatus: "paid",
-    createdDate: "15/01/2025",
-    updatedDate: "27/01/2025",
-    userData: {
-      name: "Meta Business Account",
-      email: "business@example.com",
-      image: null
-    },
-    platformData: {
-      note: "Facebook and Instagram campaigns are running successfully.",
-      connectionHealth: "excellent",
-      tokenStatus: "valid",
-      tokenExpiresAt: "2025-02-27T10:30:00Z",
-      needsRefresh: false,
-      syncStatus: "synced",
-      availablePlatforms: ["facebook", "instagram", "messenger"],
-      oauthScopes: [
-        "ads_management",
-        "ads_read",
-        "business_management",
-        "pages_read_engagement"
-      ],
-      accountAgeDays: 12,
-      connectionSummary: {
-        status: "connected",
-        tokenValid: true,
-        hasRefreshToken: true,
-        platformsCount: 3,
-        lastActivity: "2025-01-27T10:30:00Z"
-      }
-    }
-  },
-  {
-    id: "tiktok",
-    title: "TikTok Ads",
-    description: "Create and manage TikTok advertising campaigns",
-    domain: "y***1@gmail.com",
-    integrations: [
-      {
-        type: "tiktok",
-        name: "TikTok Ads",
-        status: "active",
-        lastSync: "2025-07-05T15:05:58.489848+00:00"
-      }
-    ],
-    metrics: {
-      campaigns: 0,
-      ads: 0,
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0
-    },
-    status: "active",
-    paymentStatus: "paid",
-    createdDate: new Date().toLocaleDateString('en-GB'),
-    updatedDate: new Date().toLocaleDateString('en-GB'),
-    userData: {
-      name: "user5835681783823",
-      email: "y***1@gmail.com",
-      image: null
-    },
-    platformData: {
-      note: "TikTok account connected and active."
-    }
-  },
-  {
-    id: "linkedin",
-    title: "LinkedIn Ads",
-    description: "Manage LinkedIn advertising campaigns and B2B marketing",
-    domain: "business@example.com",
-    integrations: [
-      {
-        type: "linkedin",
-        name: "LinkedIn Ads",
-        status: "inactive",
-        lastSync: null
-      }
-    ],
-    metrics: {
-      campaigns: 0,
-      ads: 0,
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0
-    },
-    status: "inactive",
-    paymentStatus: "paid",
-    createdDate: new Date().toLocaleDateString('en-GB'),
-    updatedDate: new Date().toLocaleDateString('en-GB'),
-    userData: {
-      name: "LinkedIn Business Account",
-      email: "business@example.com",
-      image: null
-    },
-    platformData: {
-      note: "LinkedIn Ads integration coming soon."
-    }
-  },
-  {
-    id: "shopify",
-    title: "Shopify",
-    description: "Connect your Shopify store for e-commerce analytics",
-    domain: "example.myshopify.com",
-    integrations: [
-      {
-        type: "shopify",
-        name: "Shopify",
-        status: "inactive",
-        lastSync: null
-      }
-    ],
-    metrics: {
-      total_orders: 0,
-      total_revenue: 0,
-      total_customers: 0,
-      products_count: 0
-    },
-    status: "inactive",
-    paymentStatus: "paid",
-    createdDate: new Date().toLocaleDateString('en-GB'),
-    updatedDate: new Date().toLocaleDateString('en-GB'),
-    userData: {
-      name: "Shopify Store",
-      email: "store@example.myshopify.com",
-      image: null
-    },
-    platformData: {
-      note: "Connect your Shopify store to access e-commerce analytics and data.",
-      productsCount: 0,
-      collectionsCount: 0
-    }
-  }
-];
+// Using platform connections API - no mock data needed
 
 export const fetchIntegrations = createAsyncThunk(
   'integrations/fetchIntegrations',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('Fetching integrations from API...');
-      const response = await apiService.integrations.list();
+      console.log('Fetching integrations from platform connections API...');
+      const response = await apiService.marketing.platformConnections();
       
-      console.log('API Response:', response?.data);
+      console.log('Platform Connections API Response:', response?.data);
       
-      // Handle the new API response format
+      // Handle the platform connections API response format
       if (response?.data?.error === false && response?.data?.result) {
-        const integrationsData = response.data.result;
+        const result = response.data.result;
+        const transformedIntegrations = [];
         
-        console.log('Integrations data:', integrationsData);
-        
-        // Transform the API response to match our expected format
-        const transformedIntegrations = Object.entries(integrationsData).map(([platform, data]) => {
-          // Skip the summary object
-          if (platform === 'summary') {
-            return null;
-          }
-          
-          console.log(`Processing platform: ${platform}`, data);
-          
-          // Handle different data structures for different platforms
-          let userData = null;
-          let domain = `${platform}@example.com`;
-          let lastSync = null;
-          let connectionStatus = data.connected ? 'active' : 'inactive';
-          
-          if (platform === 'google' && data.data?.google_account) {
-            // Google has detailed account information
-            userData = {
-              name: data.data.google_account.name || 'Google User',
-              email: data.data.google_account.email || 'google@example.com',
-              image: data.data.google_account.picture
-            };
-            domain = data.data.google_account.email || 'google@example.com';
-            lastSync = data.data.last_sync_at;
+        // Process Google accounts - each account becomes a separate integration
+        if (result.google_accounts && Array.isArray(result.google_accounts)) {
+          result.google_accounts.forEach((account, index) => {
+            const googleAccount = account.google_account || {};
+            const connectionStatus = account.is_active && !account.is_token_expired 
+              ? 'active' 
+              : account.has_refresh_token && account.is_token_expired 
+                ? 'needs_refresh' 
+                : 'inactive';
             
-            // Determine connection status based on Google's detailed data
-            if (data.data.is_active && !data.data.is_token_expired) {
-              connectionStatus = 'active';
-            } else if (data.data.has_refresh_token && data.data.is_token_expired) {
-              connectionStatus = 'needs_refresh';
-            } else {
-              connectionStatus = 'inactive';
-            }
-          } else if (platform === 'meta') {
-            // Meta has account info
-            userData = {
-              name: data.data.account_name || 'Meta Business Account',
-              email: data.data.account_email || 'business@example.com',
-              image: null
-            };
-            domain = data.data.account_email || 'business@example.com';
-            lastSync = data.data.last_sync;
-          } else if (platform === 'tiktok') {
-            // TikTok has account info
-            userData = {
-              name: data.data.account_name || 'TikTok User',
-              email: data.data.account_email || 'tiktok@example.com',
-              image: null
-            };
-            domain = data.data.account_email || 'tiktok@example.com';
-            lastSync = data.data.last_sync;
-          } else if (platform === 'linkedin') {
-            // LinkedIn has account info
-            userData = {
-              name: data.data.account_name || 'LinkedIn Business Account',
-              email: data.data.account_email || 'business@example.com',
-              image: null
-            };
-            domain = data.data.account_email || 'business@example.com';
-            lastSync = data.data.last_sync;
-          } else if (platform === 'shopify') {
-            // Shopify has store info
-            userData = {
-              name: data.data?.store_name || 'My Shopify Store',
-              email: data.data?.store_url || 'https://example.myshopify.com',
-              image: null
-            };
-            domain = data.data?.store_url || 'https://example.myshopify.com';
-            lastSync = data.data?.last_sync;
-          }
-          
-          const transformedIntegration = {
-            id: platform,
-            title: data.title,
-            description: data.description,
-            domain: domain,
-            integrations: [{
-              type: platform,
-              name: data.title,
+            const integration = {
+              id: `google-${account.google_account_id || index}`,
+              title: 'Google Ads',
+              description: 'Manage Google Ads campaigns, track performance, and optimize ad spend',
+              domain: googleAccount.email || 'google@example.com',
+              integrations: [{
+                type: 'google',
+                name: 'Google Ads',
+                status: connectionStatus,
+                lastSync: account.last_sync_at
+              }],
+              metrics: {
+                campaigns: 0,
+                ads: 0,
+                spend: 0,
+                impressions: 0,
+                clicks: 0,
+                conversions: 0
+              },
               status: connectionStatus,
-              lastSync: lastSync
+              paymentStatus: 'paid',
+              createdDate: account.created_at ? new Date(account.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
+              updatedDate: account.last_sync_at ? new Date(account.last_sync_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
+              userData: {
+                name: googleAccount.name || 'Google User',
+                email: googleAccount.email || 'google@example.com',
+                image: googleAccount.picture || null
+              },
+              platformData: {
+                googleAccountId: account.google_account_id,
+                accountId: account.google_account_id, // For compatibility with refresh/disconnect
+                availablePlatforms: account.available_platforms || [],
+                tokenExpiresAt: account.token_expires_at,
+                hasRefreshToken: account.has_refresh_token,
+                isTokenExpired: account.is_token_expired,
+                needsRefresh: account.needs_refresh,
+                timeUntilExpirySeconds: account.time_until_expiry_seconds,
+                connectionHealth: account.is_active && !account.is_token_expired ? 'excellent' : account.is_token_expired ? 'needs_refresh' : 'inactive',
+                tokenStatus: account.is_token_expired ? 'expired' : account.is_active ? 'valid' : 'inactive',
+                syncStatus: account.last_sync_at ? 'synced' : 'never_synced',
+                isActive: account.is_active
+              }
+            };
+            
+            transformedIntegrations.push(integration);
+            console.log(`Transformed Google integration:`, integration);
+          });
+        }
+        
+        // Process Meta connections - each connection becomes a separate integration
+        if (result.meta_connections && Array.isArray(result.meta_connections)) {
+          result.meta_connections.forEach((connection, index) => {
+            const connectionStatus = connection.is_active && !connection.is_token_expired 
+              ? 'active' 
+              : connection.needs_refresh 
+                ? 'needs_refresh' 
+                : 'inactive';
+            
+            const integration = {
+              id: `meta-${connection.connection_id || index}`,
+              title: 'Meta Ads',
+              description: 'Manage Facebook and Instagram advertising campaigns',
+              domain: connection.account_email || 'business@example.com',
+              integrations: [{
+                type: 'meta',
+                name: 'Meta Ads',
+                status: connectionStatus,
+                lastSync: connection.last_sync_at
+              }],
+              metrics: {
+                campaigns: 0,
+                ads: 0,
+                spend: 0,
+                impressions: 0,
+                clicks: 0,
+                conversions: 0
+              },
+              status: connectionStatus,
+              paymentStatus: 'paid',
+              createdDate: connection.created_at ? new Date(connection.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
+              updatedDate: connection.updated_at ? new Date(connection.updated_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
+              userData: {
+                name: connection.account_name || 'Meta Business Account',
+                email: connection.account_email || 'business@example.com',
+                image: null
+              },
+              platformData: {
+                connectionId: connection.connection_id,
+                accountId: connection.connection_id, // For compatibility with refresh/disconnect
+                platformAccountId: connection.platform_account_id,
+                platform: connection.platform,
+                connectionType: connection.connection_type,
+                tokenExpiresAt: connection.token_expires_at,
+                hasRefreshToken: connection.has_refresh_token,
+                isTokenExpired: connection.is_token_expired,
+                needsRefresh: connection.needs_refresh,
+                timeUntilExpirySeconds: connection.time_until_expiry_seconds,
+                connectionHealth: connection.is_active && !connection.is_token_expired ? 'excellent' : connection.is_token_expired ? 'needs_refresh' : 'inactive',
+                tokenStatus: connection.is_token_expired ? 'expired' : connection.is_active ? 'valid' : 'inactive',
+                syncStatus: connection.last_sync_at ? 'synced' : 'never_synced',
+                isActive: connection.is_active
+              }
+            };
+            
+            transformedIntegrations.push(integration);
+            console.log(`Transformed Meta integration:`, integration);
+          });
+        }
+        
+        // Always ensure Google and Meta platforms are available, even if not connected
+        const hasGoogle = transformedIntegrations.some(integ => 
+          integ.integrations?.some(p => p.type === 'google')
+        );
+        const hasMeta = transformedIntegrations.some(integ => 
+          integ.integrations?.some(p => p.type === 'meta')
+        );
+        
+        // Add Google platform if not present
+        if (!hasGoogle) {
+          transformedIntegrations.push({
+            id: 'google-new',
+            title: 'Google Ads',
+            description: 'Manage Google Ads campaigns, track performance, and optimize ad spend',
+            domain: 'google@example.com',
+            integrations: [{
+              type: 'google',
+              name: 'Google Ads',
+              status: 'inactive',
+              lastSync: null
             }],
-            metrics: platform === 'shopify' ? {
-              total_orders: data.data?.metrics?.total_orders || 0,
-              total_revenue: data.data?.metrics?.total_revenue || 0,
-              total_customers: data.data?.metrics?.total_customers || 0,
-              products_count: data.data?.metrics?.products_count || 0
-            } : {
-              campaigns: data.data?.metrics?.total_campaigns || 0,
-              ads: data.data?.metrics?.active_campaigns || 0,
-              spend: data.data?.metrics?.spend_30d || 0,
-              impressions: data.data?.metrics?.impressions_30d || 0,
-              clicks: data.data?.metrics?.clicks_30d || 0,
-              conversions: data.data?.metrics?.conversions_30d || 0
+            metrics: {
+              campaigns: 0,
+              ads: 0,
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0
             },
-            status: connectionStatus,
-            paymentStatus: 'paid', // Default to paid for now
-            createdDate: data.data?.created_at ? new Date(data.data.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
-            updatedDate: data.data?.updated_at ? new Date(data.data.updated_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'),
-            userData: userData,
-            // Additional platform-specific data
-            platformData: {
-              note: data.note,
-              connectionHealth: data.data?.connection_health,
-              tokenStatus: data.data?.token_status,
-              tokenExpiresAt: data.data?.token_expires_at,
-              needsRefresh: data.data?.needs_refresh,
-              syncStatus: data.data?.sync_status,
-              availablePlatforms: data.data?.available_platforms || [],
-              oauthScopes: data.data?.oauth_scopes || [],
-              accountAgeDays: data.data?.account_age_days,
-              connectionSummary: data.data?.connection_summary,
-              // Platform-specific metrics
-              adAccountsCount: data.data?.ad_accounts_count,
-              pagesCount: data.data?.pages_count,
-              advertisersCount: data.data?.advertisers_count,
-              productsCount: data.data?.products_count,
-              collectionsCount: data.data?.collections_count,
-              companyPagesCount: data.data?.company_pages_count
-            }
-          };
-          
-          console.log(`Transformed integration for ${platform}:`, transformedIntegration);
-          return transformedIntegration;
-        }).filter(Boolean); // Remove null entries (like summary)
+            status: 'inactive',
+            paymentStatus: 'paid',
+            createdDate: new Date().toLocaleDateString('en-GB'),
+            updatedDate: new Date().toLocaleDateString('en-GB'),
+            userData: null,
+            platformData: null
+          });
+          console.log('Added default Google integration (not connected)');
+        }
+        
+        // Add Meta platform if not present
+        if (!hasMeta) {
+          transformedIntegrations.push({
+            id: 'meta-new',
+            title: 'Meta Ads',
+            description: 'Manage Facebook and Instagram advertising campaigns',
+            domain: 'business@example.com',
+            integrations: [{
+              type: 'meta',
+              name: 'Meta Ads',
+              status: 'inactive',
+              lastSync: null
+            }],
+            metrics: {
+              campaigns: 0,
+              ads: 0,
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0
+            },
+            status: 'inactive',
+            paymentStatus: 'paid',
+            createdDate: new Date().toLocaleDateString('en-GB'),
+            updatedDate: new Date().toLocaleDateString('en-GB'),
+            userData: null,
+            platformData: null
+          });
+          console.log('Added default Meta integration (not connected)');
+        }
         
         console.log('Final transformed integrations:', transformedIntegrations);
         return transformedIntegrations;
       } else {
         console.error('Invalid API response format:', response?.data);
-        return mockIntegrations;
+        // Even if API response is invalid, return default Google and Meta platforms
+        return [
+          {
+            id: 'google-new',
+            title: 'Google Ads',
+            description: 'Manage Google Ads campaigns, track performance, and optimize ad spend',
+            domain: 'google@example.com',
+            integrations: [{
+              type: 'google',
+              name: 'Google Ads',
+              status: 'inactive',
+              lastSync: null
+            }],
+            metrics: {
+              campaigns: 0,
+              ads: 0,
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0
+            },
+            status: 'inactive',
+            paymentStatus: 'paid',
+            createdDate: new Date().toLocaleDateString('en-GB'),
+            updatedDate: new Date().toLocaleDateString('en-GB'),
+            userData: null,
+            platformData: null
+          },
+          {
+            id: 'meta-new',
+            title: 'Meta Ads',
+            description: 'Manage Facebook and Instagram advertising campaigns',
+            domain: 'business@example.com',
+            integrations: [{
+              type: 'meta',
+              name: 'Meta Ads',
+              status: 'inactive',
+              lastSync: null
+            }],
+            metrics: {
+              campaigns: 0,
+              ads: 0,
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0
+            },
+            status: 'inactive',
+            paymentStatus: 'paid',
+            createdDate: new Date().toLocaleDateString('en-GB'),
+            updatedDate: new Date().toLocaleDateString('en-GB'),
+            userData: null,
+            platformData: null
+          }
+        ];
       }
     } catch (error) {
       console.error('Failed to fetch integrations:', error);
@@ -372,67 +274,90 @@ export const fetchIntegrations = createAsyncThunk(
         response: error.response?.data,
         status: error.response?.status
       });
-      return mockIntegrations;
+      // Even on error, return default Google and Meta platforms so users can connect
+      return [
+        {
+          id: 'google-new',
+          title: 'Google Ads',
+          description: 'Manage Google Ads campaigns, track performance, and optimize ad spend',
+          domain: 'google@example.com',
+          integrations: [{
+            type: 'google',
+            name: 'Google Ads',
+            status: 'inactive',
+            lastSync: null
+          }],
+          metrics: {
+            campaigns: 0,
+            ads: 0,
+            spend: 0,
+            impressions: 0,
+            clicks: 0,
+            conversions: 0
+          },
+          status: 'inactive',
+          paymentStatus: 'paid',
+          createdDate: new Date().toLocaleDateString('en-GB'),
+          updatedDate: new Date().toLocaleDateString('en-GB'),
+          userData: null,
+          platformData: null
+        },
+        {
+          id: 'meta-new',
+          title: 'Meta Ads',
+          description: 'Manage Facebook and Instagram advertising campaigns',
+          domain: 'business@example.com',
+          integrations: [{
+            type: 'meta',
+            name: 'Meta Ads',
+            status: 'inactive',
+            lastSync: null
+          }],
+          metrics: {
+            campaigns: 0,
+            ads: 0,
+            spend: 0,
+            impressions: 0,
+            clicks: 0,
+            conversions: 0
+          },
+          status: 'inactive',
+          paymentStatus: 'paid',
+          createdDate: new Date().toLocaleDateString('en-GB'),
+          updatedDate: new Date().toLocaleDateString('en-GB'),
+          userData: null,
+          platformData: null
+        }
+      ];
     }
   }
 );
 
-export const createIntegration = createAsyncThunk(
-  'integrations/createIntegration',
-  async (integrationData, { rejectWithValue }) => {
-    try {
-      const response = await apiService.integrations.create(integrationData);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create integration');
-    }
-  }
-);
-
+// Local state update functions (connections are managed through platform-specific APIs)
 export const updateIntegration = createAsyncThunk(
   'integrations/updateIntegration',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await apiService.integrations.update(id, data);
-      return response.data;
+      // Just update local state - actual updates happen through platform-specific APIs
+      // After platform operations, refresh the connections list
+      await dispatch(fetchIntegrations());
+      return { id, ...data };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update integration');
+      return rejectWithValue(error.message || 'Failed to update integration');
     }
   }
 );
 
 export const deleteIntegration = createAsyncThunk(
   'integrations/deleteIntegration',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, rejectWithValue }) => {
     try {
-      await apiService.integrations.delete(id);
+      // Just remove from local state - actual deletion happens through platform-specific APIs
+      // After platform operations, refresh the connections list
+      await dispatch(fetchIntegrations());
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete integration');
-    }
-  }
-);
-
-export const connectIntegration = createAsyncThunk(
-  'integrations/connectIntegration',
-  async (integrationId, { rejectWithValue }) => {
-    try {
-      const response = await apiService.integrations.connect(integrationId);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to connect integration');
-    }
-  }
-);
-
-export const disconnectIntegration = createAsyncThunk(
-  'integrations/disconnectIntegration',
-  async (integrationId, { rejectWithValue }) => {
-    try {
-      const response = await apiService.integrations.disconnect(integrationId);
-      return response.data;
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to disconnect integration');
+      return rejectWithValue(error.message || 'Failed to delete integration');
     }
   }
 );
@@ -519,26 +444,18 @@ const integrationsSlice = createSlice({
         state.error = action.error.message;
       })
       
-      // Create integration
-      .addCase(createIntegration.fulfilled, (state, action) => {
-        if (!Array.isArray(state.integrations)) {
-          state.integrations = [];
-        }
-        state.integrations.push(action.payload);
-      })
-      
-      // Update integration
+      // Update integration (local state update - actual updates via platform APIs)
       .addCase(updateIntegration.fulfilled, (state, action) => {
         if (!Array.isArray(state.integrations)) {
           state.integrations = [];
         }
         const index = state.integrations.findIndex(integration => integration.id === action.payload.id);
         if (index !== -1) {
-          state.integrations[index] = action.payload;
+          state.integrations[index] = { ...state.integrations[index], ...action.payload };
         }
       })
       
-      // Delete integration
+      // Delete integration (local state update - actual deletion via platform APIs)
       .addCase(deleteIntegration.fulfilled, (state, action) => {
         if (!Array.isArray(state.integrations)) {
           state.integrations = [];

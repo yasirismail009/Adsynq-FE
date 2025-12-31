@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import ChartCard from '../dashboard/ChartCard';
 import { 
   ArrowLeftIcon,
@@ -116,6 +117,7 @@ import {
  */
 
 const AdAccountDetail = () => {
+  const { t } = useTranslation();
   const { accountId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -226,21 +228,21 @@ const AdAccountDetail = () => {
   const getStatusInfo = (status) => {
     if (status === 1 || status === 'ACTIVE') {
       return {
-        text: 'Active',
+        text: t('integrations.active'),
         color: 'text-green-700 dark:text-green-400',
         bgColor: 'bg-green-100 dark:bg-green-900/20',
         iconColor: 'text-green-500'
       };
     } else if (status === 3) {
       return {
-        text: 'Active',
+        text: t('integrations.active'),
         color: 'text-green-700 dark:text-green-400',
         bgColor: 'bg-green-100 dark:bg-green-900/20',
         iconColor: 'text-green-500'
       };
     } else {
       return {
-        text: 'Inactive',
+        text: t('integrations.inactive'),
         color: 'text-gray-500 dark:text-gray-400',
         bgColor: 'bg-gray-100 dark:bg-gray-700',
         iconColor: 'text-gray-400'
@@ -429,17 +431,17 @@ const AdAccountDetail = () => {
 
     // Performance metrics chart data
     const performanceData = [
-      { name: 'CTR', value: metrics.ctr, target: 2.0 },
-      { name: 'CPC', value: metrics.cpc, target: 3.0 },
-      { name: 'CPM', value: metrics.cpm, target: 50.0 },
-      { name: 'Frequency', value: metrics.frequency, target: 1.5 }
+      { name: t('common.ctr'), value: metrics.ctr, target: 2.0 },
+      { name: t('common.cpc'), value: metrics.cpc, target: 3.0 },
+      { name: t('common.cpm'), value: metrics.cpm, target: 50.0 },
+      { name: t('integrations.frequency'), value: metrics.frequency, target: 1.5 }
     ];
 
     // Video engagement chart data
     const videoData = [
-      { name: 'Video Plays', value: metrics.video_plays },
-      { name: '30s Watched', value: metrics.video_30_sec_watched },
-      { name: '25% Watched', value: metrics.video_p25_watched },
+      { name: t('integrations.videoPlays'), value: metrics.video_plays },
+      { name: t('integrations.video30SecWatched'), value: metrics.video_30_sec_watched },
+      { name: t('integrations.videoP25Watched'), value: metrics.video_p25_watched },
       { name: '50% Watched', value: metrics.video_p50_watched },
       { name: '75% Watched', value: metrics.video_p75_watched },
       { name: '95% Watched', value: metrics.video_p95_watched },
@@ -460,25 +462,25 @@ const AdAccountDetail = () => {
 
     // Campaign status distribution
     const campaignStatusData = [
-      { name: 'Active', value: campaigns.filter(c => c.status === 'ACTIVE').length, color: '#10B981' },
-      { name: 'Paused', value: campaigns.filter(c => c.status === 'PAUSED').length, color: '#F59E0B' },
-      { name: 'Inactive', value: campaigns.filter(c => !['ACTIVE', 'PAUSED'].includes(c.status)).length, color: '#EF4444' }
+      { name: t('integrations.active'), value: campaigns.filter(c => c.status === 'ACTIVE').length, color: '#10B981' },
+      { name: t('integrations.paused'), value: campaigns.filter(c => c.status === 'PAUSED').length, color: '#F59E0B' },
+      { name: t('integrations.inactive'), value: campaigns.filter(c => !['ACTIVE', 'PAUSED'].includes(c.status)).length, color: '#EF4444' }
     ];
 
     // Account health pie chart
     const accountHealthData = [
-      { name: 'Campaign Activity', value: enhancedStatistics.account_health.campaign_activity_rate, color: '#3B82F6' },
-      { name: 'Adset Activity', value: enhancedStatistics.account_health.adset_activity_rate, color: '#10B981' },
-      { name: 'Ad Activity', value: enhancedStatistics.account_health.ad_activity_rate, color: '#F59E0B' },
-      { name: 'Overall Activity', value: enhancedStatistics.account_health.overall_activity_rate, color: '#8B5CF6' }
+      { name: t('integrations.campaignActivity'), value: enhancedStatistics.account_health.campaign_activity_rate, color: '#3B82F6' },
+      { name: t('integrations.adsetActivity'), value: enhancedStatistics.account_health.adset_activity_rate, color: '#10B981' },
+      { name: t('integrations.adActivity'), value: enhancedStatistics.account_health.ad_activity_rate, color: '#F59E0B' },
+      { name: t('integrations.overallActivity'), value: enhancedStatistics.account_health.overall_activity_rate, color: '#8B5CF6' }
     ];
 
     // ROI metrics chart
     const roiData = [
-      { name: 'Spend Efficiency', value: enhancedStatistics.roi_metrics.spend_efficiency },
-      { name: 'Reach Efficiency', value: enhancedStatistics.roi_metrics.reach_efficiency },
-      { name: 'Social Spend Ratio', value: enhancedStatistics.roi_metrics.social_spend_ratio },
-      { name: 'Outbound Engagement', value: enhancedStatistics.roi_metrics.outbound_engagement_rate }
+      { name: t('integrations.spendEfficiency'), value: enhancedStatistics.roi_metrics.spend_efficiency },
+      { name: t('integrations.reachEfficiency'), value: enhancedStatistics.roi_metrics.reach_efficiency },
+      { name: t('integrations.socialSpendRatio'), value: enhancedStatistics.roi_metrics.social_spend_ratio },
+      { name: t('integrations.outboundEngagement'), value: enhancedStatistics.roi_metrics.outbound_engagement_rate }
     ];
 
     return {
@@ -496,7 +498,7 @@ const AdAccountDetail = () => {
     return (
       <div className="text-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 dark:text-gray-400">Loading account details...</p>
+        <p className="text-gray-600 dark:text-gray-400">{t('integrations.loadingAccountDetails')}</p>
       </div>
     );
   }
@@ -504,12 +506,12 @@ const AdAccountDetail = () => {
   if (!account) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-600 dark:text-red-400 mb-4">Ad account not found</p>
+        <p className="text-red-600 dark:text-red-400 mb-4">{t('integrations.adAccountNotFound')}</p>
         <button 
           onClick={() => navigate('/integrations')}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
         >
-          Back to Integrations
+          {t('common.backToIntegrations')}
         </button>
       </div>
     );
@@ -521,16 +523,16 @@ const AdAccountDetail = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+        <div className="flex items-center justify-between rtl:flex-row-reverse">
+          <div className="flex items-center space-x-4 rtl:space-x-reverse">
             <button
               onClick={() => navigate('/integrations')}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400 rtl:rotate-180" />
             </button>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
                 <BuildingStorefrontIcon className="w-8 h-8 text-white" />
               </div>
@@ -540,27 +542,27 @@ const AdAccountDetail = () => {
                   {enhancedAccountInfo.name}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Ad Account Details
+                  {t('integrations.adAccountDetails')}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 rtl:space-x-reverse">
             <span className={`inline-flex items-center gap-2 px-3 py-1 ${statusInfo.bgColor} ${statusInfo.color} text-sm font-medium rounded-full`}>
               <CheckCircleIcon className="w-4 h-4" />
               {statusInfo.text}
             </span>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 rtl:space-x-reverse">
               <select 
                 value={selectedTimeframe}
                 onChange={(e) => handleTimeframeChange(e.target.value)}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
               >
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="90d">Last 90 days</option>
+                <option value="7d">{t('common.last7Days')}</option>
+                <option value="30d">{t('common.last30Days')}</option>
+                <option value="90d">{t('common.last90Days')}</option>
               </select>
             </div>
           </div>
@@ -579,7 +581,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Total Spend
+                  {t('common.totalSpend')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.spend, 'currency', metrics.currency)}
@@ -600,7 +602,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Total Impressions
+                  {t('common.totalImpressions')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.impressions)}
@@ -621,7 +623,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Total Clicks
+                  {t('common.totalClicks')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.clicks)}
@@ -642,7 +644,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  CTR
+                  {t('common.ctr')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.ctr, 'percentage')}
@@ -668,7 +670,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Outbound Clicks
+                  {t('integrations.outboundClicks')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.outbound_clicks)}
@@ -689,7 +691,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Video Plays
+                  {t('integrations.videoPlays')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.video_plays)}
@@ -710,7 +712,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Social Spend
+                  {t('integrations.socialSpendRatio')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.social_spend, 'currency', metrics.currency)}
@@ -731,7 +733,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Website CTR
+                  {t('integrations.websiteCTR')}
                 </p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {formatMetric(metrics.website_ctr, 'percentage')}
@@ -748,12 +750,12 @@ const AdAccountDetail = () => {
       {/* Performance Graph Section */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Performance Overview</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('common.overallPerformanceStats')}</h2>
           
           <div className="flex items-center space-x-4">
             {/* Custom Date Range */}
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400">{t('common.from')}:</label>
               <input
                 type="date"
                 value={dateRange.date_from}
@@ -763,7 +765,7 @@ const AdAccountDetail = () => {
             </div>
             
             <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400">{t('common.to')}:</label>
               <input
                 type="date"
                 value={dateRange.date_to}
@@ -777,7 +779,7 @@ const AdAccountDetail = () => {
               disabled={loading}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {loading ? 'Loading...' : 'Refresh'}
+              {loading ? t('common.loading') : t('integrations.refresh')}
             </button>
           </div>
         </div>
@@ -787,7 +789,7 @@ const AdAccountDetail = () => {
             <div className="flex items-center space-x-2">
               <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
               <p className="text-red-700 dark:text-red-400 text-sm">
-                {typeof error === 'string' ? error : error?.message || error?.error || 'An error occurred'}
+                {typeof error === 'string' ? error : error?.message || error?.error || t('integrations.anErrorOccurred')}
               </p>
             </div>
           </div>
@@ -796,7 +798,7 @@ const AdAccountDetail = () => {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading graph data...</span>
+            <span className="ml-3 text-gray-600 dark:text-gray-400">{t('integrations.loadingGraphData')}</span>
           </div>
         ) : hasValidData ? (
           <div className="space-y-6">
@@ -809,7 +811,7 @@ const AdAccountDetail = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Reach</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('integrations.reach')}</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metrics.reach)}
                     </p>
@@ -826,7 +828,7 @@ const AdAccountDetail = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">CPC</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.cpc')}</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metrics.cpc, 'currency', metrics.currency)}
                     </p>
@@ -843,7 +845,7 @@ const AdAccountDetail = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">CPM</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.cpm')}</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metrics.cpm, 'currency', metrics.currency)}
                     </p>
@@ -860,7 +862,7 @@ const AdAccountDetail = () => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Video Plays</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('integrations.videoPlays')}</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatMetric(metrics.video_plays)}
                     </p>
@@ -877,7 +879,7 @@ const AdAccountDetail = () => {
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <ChartBarIcon className="w-5 h-5 mr-2" />
-                    Performance Metrics
+                    {t('integrations.performanceMetrics')}
                   </h3>
                   <div className="space-y-3">
                     <div className="flex justify-between">
@@ -893,7 +895,7 @@ const AdAccountDetail = () => {
                       <span className="font-medium">{formatMetric(enhancedStatistics.performance_metrics?.cpm || 0, 'currency', enhancedAccountInfo.currency)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Frequency</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t('integrations.frequency')}</span>
                       <span className="font-medium">{enhancedStatistics.performance_metrics?.frequency || 0}</span>
                     </div>
                   </div>
@@ -903,11 +905,11 @@ const AdAccountDetail = () => {
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <ShieldCheckIcon className="w-5 h-5 mr-2" />
-                    Account Health
+                    {t('integrations.accountHealth')}
                   </h3>
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Campaign Activity</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t('integrations.campaignActivity')}</span>
                       <span className="font-medium">{formatMetric(enhancedStatistics.account_health?.campaign_activity_rate || 0, 'percentage')}</span>
                     </div>
                     <div className="flex justify-between">
@@ -929,7 +931,7 @@ const AdAccountDetail = () => {
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <BoltIcon className="w-5 h-5 mr-2" />
-                    ROI Metrics
+                    {t('integrations.roiMetrics')}
                   </h3>
                   <div className="space-y-3">
                     <div className="flex justify-between">
@@ -1028,16 +1030,16 @@ const AdAccountDetail = () => {
           {/* Campaign and Account Health Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ChartCard
-              title="Campaign Status Distribution"
-              subtitle="Active vs paused campaigns"
+              title={t('integrations.campaignStatusDistribution')}
+              subtitle={t('integrations.activeVsPausedCampaigns')}
               data={chartData.campaignStatusData}
               type="pie"
               height={300}
             />
             
             <ChartCard
-              title="Account Health Overview"
-              subtitle="Activity rates across account"
+              title={t('integrations.accountHealthOverview')}
+              subtitle={t('integrations.activityRatesAcrossAccount')}
               data={chartData.accountHealthData}
               type="pie"
               height={300}
@@ -1046,8 +1048,8 @@ const AdAccountDetail = () => {
 
           {/* ROI Metrics Chart */}
           <ChartCard
-            title="ROI Metrics"
-            subtitle="Return on investment indicators"
+            title={t('integrations.roiMetrics')}
+            subtitle={t('integrations.returnOnInvestmentIndicators')}
             data={chartData.roiData}
             type="bar"
             height={300}
@@ -1198,8 +1200,8 @@ const AdAccountDetail = () => {
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Account Age</label>
-              <p className="text-gray-900 dark:text-white">{formatMetric(enhancedAccountInfo.age || 0)} days</p>
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('integrations.accountAge')}</label>
+              <p className="text-gray-900 dark:text-white">{formatMetric(enhancedAccountInfo.age || 0)} {t('integrations.days')}</p>
             </div>
           </div>
         </div>
@@ -1208,14 +1210,14 @@ const AdAccountDetail = () => {
       {/* Actions Breakdown Section */}
       {hasValidData && Object.keys(metrics.actions || {}).length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Actions Breakdown</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">{t('integrations.actionsBreakdown')}</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Actions */}
             <div className="space-y-4">
               <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
                 <CursorArrowRaysIcon className="w-5 h-5 mr-2" />
-                Actions Count
+                {t('integrations.actionsCount')}
               </h3>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {Object.entries(metrics.actions || {}).map(([key, value]) => (
@@ -1235,7 +1237,7 @@ const AdAccountDetail = () => {
             <div className="space-y-4">
               <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
                 <CurrencyDollarIcon className="w-5 h-5 mr-2" />
-                Action Values
+                {t('integrations.actionValues')}
               </h3>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {Object.entries(metrics.action_values || {}).map(([key, value]) => (
@@ -1255,17 +1257,17 @@ const AdAccountDetail = () => {
             <div className="space-y-4">
               <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
                 <ChartBarIcon className="w-5 h-5 mr-2" />
-                Key Metrics
+                {t('integrations.keyMetrics')}
               </h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <span className="text-sm text-blue-600 dark:text-blue-400">Total Actions</span>
+                  <span className="text-sm text-blue-600 dark:text-blue-400">{t('integrations.totalActions')}</span>
                   <span className="font-medium text-blue-900 dark:text-blue-100">
                     {Object.values(metrics.actions || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <span className="text-sm text-green-600 dark:text-green-400">Total Value</span>
+                  <span className="text-sm text-green-600 dark:text-green-400">{t('integrations.totalValue')}</span>
                   <span className="font-medium text-green-900 dark:text-green-100">
                     {formatMetric(
                       Object.values(metrics.action_values || {}).reduce((sum, val) => sum + (parseFloat(val) || 0), 0),
@@ -1275,7 +1277,7 @@ const AdAccountDetail = () => {
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                  <span className="text-sm text-purple-600 dark:text-purple-400">Avg Value/Action</span>
+                  <span className="text-sm text-purple-600 dark:text-purple-400">{t('integrations.avgValuePerAction')}</span>
                   <span className="font-medium text-purple-900 dark:text-purple-100">
                     {formatMetric(
                       Object.values(metrics.action_values || {}).reduce((sum, val) => sum + (parseFloat(val) || 0), 0) / 
@@ -1294,9 +1296,9 @@ const AdAccountDetail = () => {
       {/* Campaigns List */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Campaigns ({campaigns.length})</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('integrations.campaignsList')} ({campaigns.length})</h2>
           <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-            Create Campaign
+            {t('integrations.createCampaign')}
           </button>
         </div>
         
@@ -1305,11 +1307,11 @@ const AdAccountDetail = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Campaign</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Effective Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Created</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Actions</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">{t('integrations.campaignName')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">{t('common.status')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">{t('integrations.effectiveStatus')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">{t('integrations.created')}</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1344,10 +1346,10 @@ const AdAccountDetail = () => {
                     </td>
                     <td className="py-3 px-4">
                       <button 
-                        onClick={() => navigate(`/facebook/campaign/${campaign.id}`)}
+                        onClick={() => navigate(`/meta/campaign/${campaign.id}`)}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                       >
-                        View Details
+                        {t('common.viewDetails')}
                       </button>
                     </td>
                   </tr>
@@ -1358,9 +1360,9 @@ const AdAccountDetail = () => {
         ) : (
           <div className="text-center py-8">
             <ChartBarIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">No campaigns found for this account</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('integrations.noCampaignsFound')}</p>
             <button className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-              Create Your First Campaign
+              {t('integrations.createYourFirstCampaign')}
             </button>
           </div>
         )}
@@ -1368,22 +1370,22 @@ const AdAccountDetail = () => {
 
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.quickActions')}</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
             <ChartBarIcon className="w-5 h-5" />
-            <span>Create Campaign</span>
+            <span>{t('integrations.createCampaign')}</span>
           </button>
           
           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
             <CreditCardIcon className="w-5 h-5" />
-            <span>Add Payment Method</span>
+            <span>{t('integrations.addPaymentMethod')}</span>
           </button>
           
           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
             <CogIcon className="w-5 h-5" />
-            <span>Account Settings</span>
+            <span>{t('integrations.accountSettings')}</span>
           </button>
         </div>
       </div>

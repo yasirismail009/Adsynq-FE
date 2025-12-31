@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ChartBarIcon,
   CurrencyDollarIcon,
@@ -22,11 +23,12 @@ import { fetchGoogleOverallStats, selectGoogleOverallStats, selectGoogleOverallS
 import { axiosPrivate } from '../../services/api';
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { integrations, loading } = useIntegrations();
 
-  // Use ref to track if API calls have been made
+  // Use ref to track if API calls have been made (survives StrictMode double render)
   const hasInitialized = useRef(false);
 
   // Redux state for platform connections
@@ -45,115 +47,65 @@ const Dashboard = () => {
   const googleOverallStatsError = useSelector(selectGoogleOverallStatsError);
 
   // Fetch platform connections and Meta stats on component mount (only once)
+  // The ref persists across React.StrictMode double renders in development
   useEffect(() => {
     if (!hasInitialized.current) {
-      console.log('Dispatching fetchPlatformConnections, fetchMetaOverallStats, and fetchGoogleOverallStats...');
       dispatch(fetchPlatformConnections());
       dispatch(fetchMetaOverallStats());
       dispatch(fetchGoogleOverallStats());
       hasInitialized.current = true;
     }
-  }, []);
+  }, [dispatch]);
 
-  // Log platform connections data
+  // Set up periodic refresh for Google data (every 30 seconds)
   useEffect(() => {
-    if (platformConnections && platformConnections.length > 0) {
-      console.log('Platform Connections Data:', platformConnections);
-    }
-  }, [platformConnections]);
+    // Don't set up interval if not initialized yet
+    if (!hasInitialized.current) return;
 
-  // Log loading and error states
-  useEffect(() => {
-    console.log('Dashboard Loading States:', dashboardLoading);
-    if (dashboardLoading.platformConnections) {
-      console.log('Fetching platform connections...');
-    }
-  }, [dashboardLoading]);
+    const refreshInterval = setInterval(() => {
+      dispatch(fetchGoogleOverallStats());
+    }, 30000); // Refresh every 30 seconds
 
-  // Log errors
-  useEffect(() => {
-    if (dashboardErrors.platformConnections) {
-      console.error('Platform Connections Error:', dashboardErrors.platformConnections);
-    }
-  }, [dashboardErrors]);
+    // Cleanup interval on unmount
+    return () => clearInterval(refreshInterval);
+  }, [dispatch]);
 
-  // Fetch SA360 overall stats
+  // Refresh Google data when window/tab comes into focus (but not on initial mount)
   useEffect(() => {
-    const fetchSA360Stats = async () => {
-      try {
-        console.log('Fetching SA360 overall stats...');
-        const response = await axiosPrivate.get('/marketing/sa360/overall-stats/');
-        console.log('SA360 Overall Stats Response:', response.data);
-      } catch (error) {
-        console.error('Error fetching SA360 overall stats:', error);
-        if (error.response) {
-          console.error('Error response:', error.response.data);
-        }
+    // Don't set up focus listener if not initialized yet
+    if (!hasInitialized.current) return;
+
+    // Track when component mounted to skip initial focus event
+    const componentMountTime = Date.now();
+    let hasHandledInitialFocus = false;
+
+    const handleFocus = () => {
+      const timeSinceMount = Date.now() - componentMountTime;
+      
+      // Skip focus events within first 2 seconds (likely from initial mount)
+      if (!hasHandledInitialFocus && timeSinceMount < 2000) {
+        hasHandledInitialFocus = true;
+        return;
       }
+      
+      dispatch(fetchGoogleOverallStats());
     };
 
-    // fetchSA360Stats();
-  }, []);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [dispatch]);
 
-  // Log Meta stats data
-  useEffect(() => {
-    if (metaOverallStats) {
-      console.log('Meta Overall Stats Data:', metaOverallStats);
-    }
-  }, [metaOverallStats]);
 
-  // Log Meta loading and error states
-  useEffect(() => {
-    console.log('Meta Loading States:', metaLoading);
-    console.log('Meta Overall Stats:', metaOverallStats);
-    console.log('Meta Errors:', metaErrors);
-    if (metaLoading.overallStats) {
-      console.log('Fetching Meta overall stats...');
-    }
-  }, [metaLoading, metaOverallStats, metaErrors]);
-
-  // Log Google stats data
-  useEffect(() => {
-    if (googleOverallStats) {
-      console.log('Google Overall Stats Data:', googleOverallStats);
-    }
-  }, [googleOverallStats]);
-
-  // Log Google loading and error states
-  useEffect(() => {
-    console.log('Google Loading States:', googleOverallStatsLoading);
-    console.log('Google Overall Stats:', googleOverallStats);
-    console.log('Google Errors:', googleOverallStatsError);
-    if (googleOverallStatsLoading) {
-      console.log('Fetching Google overall stats...');
-    }
-  }, [googleOverallStatsLoading, googleOverallStats, googleOverallStatsError]);
-
-  // Log Meta errors
-  useEffect(() => {
-    if (metaErrors.overallStats) {
-      console.error('Meta Overall Stats Error:', metaErrors.overallStats);
-    }
-  }, [metaErrors]);
 
   // Check if there are any platform connections
   const hasConnections = platformConnections && platformConnections.result && (
     platformConnections.result.total_connections > 0 ||
     (platformConnections.result.google_accounts && platformConnections.result.google_accounts.length > 0) ||
-    (platformConnections.result.tiktok_connections && platformConnections.result.tiktok_connections.length > 0) ||
     (platformConnections.result.meta_connections && platformConnections.result.meta_connections.length > 0)
   );
 
-  // Log connection status for debugging
-  useEffect(() => {
-    console.log('Platform Connections Status:', {
-      hasConnections,
-      totalConnections: platformConnections?.result?.total_connections,
-      googleAccounts: platformConnections?.result?.google_accounts?.length,
-      tiktokConnections: platformConnections?.result?.tiktok_connections?.length,
-      metaConnections: platformConnections?.result?.meta_connections?.length
-    });
-  }, [hasConnections, platformConnections]);
 
   // Handle navigation to integrations page
   const handleConnectIntegrations = () => {
@@ -164,6 +116,12 @@ const Dashboard = () => {
   const handleManualMetaDispatch = () => {
     console.log('Manually dispatching fetchMetaOverallStats...');
     dispatch(fetchMetaOverallStats());
+  };
+
+  // Manual refresh for Google data
+  const handleManualGoogleRefresh = () => {
+    console.log('Manually refreshing Google overall stats...');
+    dispatch(fetchGoogleOverallStats());
   };
 
   // Calculate aggregated metrics
@@ -209,10 +167,91 @@ const Dashboard = () => {
 
   const metrics = calculateMetrics();
 
-  // Calculate performance metrics
-  const ctr = metrics.totalImpressions > 0 ? (metrics.totalClicks / metrics.totalImpressions * 100) : 0;
-  const conversionRate = metrics.totalClicks > 0 ? (metrics.totalConversions / metrics.totalClicks * 100) : 0;
-  const cpa = metrics.totalConversions > 0 ? (metrics.totalSpend / metrics.totalConversions) : 0;
+  // Helper function to extract Meta stats - only returns data if it exists
+  const getMetaStats = () => {
+    if (!metaOverallStats || !metaOverallStats.result || !metaOverallStats.result.overall_totals) {
+      return null;
+    }
+
+    const { result } = metaOverallStats;
+    const { overall_totals, ad_accounts } = result;
+
+    // Only return stats if we have actual data
+    if (!overall_totals) {
+      return null;
+    }
+
+    return {
+      totalAdAccounts: result.total_ad_accounts ?? 0,
+      activeAdAccounts: result.active_ad_accounts ?? 0,
+      totalImpressions: overall_totals.impressions ?? 0,
+      totalClicks: overall_totals.clicks ?? 0,
+      totalSpend: overall_totals.spend ?? 0,
+      totalConversions: overall_totals.conversions ?? 0,
+      averageCTR: overall_totals.ctr ?? 0,
+      averageCPC: overall_totals.cpc ?? 0,
+      averageCPM: overall_totals.cpm ?? 0,
+      adAccounts: ad_accounts ?? []
+    };
+  };
+
+  const metaStats = getMetaStats();
+
+  // Helper function to calculate combined totals from platform-specific data only
+  const getCombinedTotals = () => {
+    // Google data
+    const googleCost = googleOverallStats?.result?.summary?.total_cost || 0;
+    const googleImpressions = googleOverallStats?.result?.summary?.total_impressions || 0;
+    const googleClicks = googleOverallStats?.result?.summary?.total_clicks || 0;
+    const googleConversions = googleOverallStats?.result?.summary?.total_conversions || 0;
+
+    // Only include Meta data if Meta connections exist and Meta stats are available
+    const hasMetaConnections = platformConnections?.result?.meta_connections && 
+                                platformConnections.result.meta_connections.length > 0;
+    const hasMetaData = metaOverallStats && 
+                       metaOverallStats.result && 
+                       metaOverallStats.result.overall_totals;
+    
+    const shouldIncludeMeta = hasMetaConnections && hasMetaData;
+    
+    const metaSpend = shouldIncludeMeta ? (metaStats?.totalSpend ?? 0) : 0;
+    const metaImpressions = shouldIncludeMeta ? (metaStats?.totalImpressions ?? 0) : 0;
+    const metaClicks = shouldIncludeMeta ? (metaStats?.totalClicks ?? 0) : 0;
+    const metaConversions = shouldIncludeMeta ? (metaStats?.totalConversions ?? 0) : 0;
+
+    // Calculate totals - ONLY from platform-specific data (Google + Meta if available)
+    // DO NOT include old metrics from integrations hook
+    const totals = {
+      totalSpend: googleCost + metaSpend,
+      totalImpressions: googleImpressions + metaImpressions,
+      totalClicks: googleClicks + metaClicks,
+      totalConversions: googleConversions + metaConversions,
+      // Determine currency - prefer Google's currency if available, otherwise Meta's
+      currency: googleOverallStats?.result?.summary?.primary_currency ?? 
+                googleOverallStats?.result?.summary?.total_cost_currency ?? 
+                (shouldIncludeMeta && metaOverallStats?.result?.primary_currency) ??
+                'USD'
+    };
+
+    return totals;
+  };
+
+  const combinedTotals = getCombinedTotals();
+
+  // Determine which data sources are actually available
+  const hasGoogleConnections = platformConnections?.result?.google_accounts && 
+                               platformConnections.result.google_accounts.length > 0;
+  const hasMetaConnections = platformConnections?.result?.meta_connections && 
+                             platformConnections.result.meta_connections.length > 0;
+  
+  const activeDataSources = [];
+  if (hasGoogleConnections) activeDataSources.push('google');
+  if (hasMetaConnections) activeDataSources.push('meta');
+
+  // Calculate performance metrics using combined totals from platform-specific data
+  const ctr = combinedTotals.totalImpressions > 0 ? (combinedTotals.totalClicks / combinedTotals.totalImpressions * 100) : 0;
+  const conversionRate = combinedTotals.totalClicks > 0 ? (combinedTotals.totalConversions / combinedTotals.totalClicks * 100) : 0;
+  const cpa = combinedTotals.totalConversions > 0 ? (combinedTotals.totalSpend / combinedTotals.totalConversions) : 0;
 
   // Platform breakdown
   const getPlatformBreakdown = () => {
@@ -248,10 +287,10 @@ const Dashboard = () => {
 
   const recentActivity = getRecentActivity();
 
-  const formatCurrency = (amount) => {
+  const formatCurrency = (amount, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
@@ -266,48 +305,6 @@ const Dashboard = () => {
     return num.toString();
   };
 
-  // Helper function to extract Meta stats
-  const getMetaStats = () => {
-    console.log('getMetaStats called with:', metaOverallStats);
-
-    if (!metaOverallStats || !metaOverallStats.result) {
-      console.log('No Meta stats available, returning defaults');
-      return {
-        totalAdAccounts: 0,
-        activeAdAccounts: 0,
-        totalImpressions: 0,
-        totalClicks: 0,
-        totalSpend: 0,
-        totalConversions: 0,
-        averageCTR: 0,
-        averageCPC: 0,
-        averageCPM: 0,
-        adAccounts: []
-      };
-    }
-
-    const { result } = metaOverallStats;
-    const { overall_totals, ad_accounts } = result;
-
-    const stats = {
-      totalAdAccounts: result.total_ad_accounts || 0,
-      activeAdAccounts: result.active_ad_accounts || 0,
-      totalImpressions: overall_totals?.impressions || 0,
-      totalClicks: overall_totals?.clicks || 0,
-      totalSpend: overall_totals?.spend || 0,
-      totalConversions: overall_totals?.conversions || 0,
-      averageCTR: overall_totals?.ctr || 0,
-      averageCPC: overall_totals?.cpc || 0,
-      averageCPM: overall_totals?.cpm || 0,
-      adAccounts: ad_accounts || []
-    };
-
-    console.log('Extracted Meta stats:', stats);
-    return stats;
-  };
-
-  const metaStats = getMetaStats();
-
   // Helper function to create chart data for Meta stats
   const createMetaChartData = () => {
     if (!metaOverallStats || !metaOverallStats.result) {
@@ -321,27 +318,33 @@ const Dashboard = () => {
     const { result } = metaOverallStats;
     const { overall_totals, ad_accounts } = result;
 
-    // Performance metrics chart data
+    // Performance metrics chart data - only include if value exists
     const performanceData = [
-      { name: 'Impressions', value: overall_totals?.impressions || 0 },
-      { name: 'Clicks', value: overall_totals?.clicks || 0 },
-      { name: 'Conversions', value: overall_totals?.conversions || 0 },
-      { name: 'CTR', value: (overall_totals?.ctr || 0) * 100 }, // Convert to percentage
-      { name: 'CPC', value: overall_totals?.cpc || 0 },
-      { name: 'CPM', value: overall_totals?.cpm || 0 }
-    ];
+      { name: t('dashboard.impressions'), value: overall_totals?.impressions ?? 0 },
+      { name: t('dashboard.clicks'), value: overall_totals?.clicks ?? 0 },
+      { name: t('dashboard.conversions'), value: overall_totals?.conversions ?? 0 },
+      { name: t('dashboard.ctr'), value: (overall_totals?.ctr ?? 0) * 100 }, // Convert to percentage
+      { name: t('dashboard.cpc'), value: overall_totals?.cpc ?? 0 },
+      { name: t('dashboard.cpm'), value: overall_totals?.cpm ?? 0 }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
-    // Spend by account chart data
-    const spendData = (ad_accounts || []).map(account => ({
-      name: account.name || `Account ${account.id}`,
-      value: account.totals?.spend || 0
-    })).slice(0, 10); // Limit to top 10 accounts
+    // Spend by account chart data - only include accounts with data
+    const spendData = (ad_accounts ?? [])
+      .filter(account => account.totals?.spend > 0)
+      .map(account => ({
+        name: account.name ?? `Account ${account.id}`,
+        value: account.totals.spend
+      }))
+      .slice(0, 10); // Limit to top 10 accounts
 
-    // Account performance chart data
-    const accountData = (ad_accounts || []).map(account => ({
-      name: account.name || `Account ${account.id}`,
-      value: account.totals?.impressions || 0
-    })).slice(0, 8); // Limit to top 8 accounts
+    // Account performance chart data - only include accounts with data
+    const accountData = (ad_accounts ?? [])
+      .filter(account => account.totals?.impressions > 0)
+      .map(account => ({
+        name: account.name ?? `Account ${account.id}`,
+        value: account.totals.impressions
+      }))
+      .slice(0, 8); // Limit to top 8 accounts
 
     return {
       performanceData,
@@ -363,27 +366,33 @@ const Dashboard = () => {
     const { result } = googleOverallStats;
     const { accounts, summary } = result;
 
-    // Performance metrics chart data
+    // Performance metrics chart data - only include if value exists
     const performanceData = [
-      { name: 'Impressions', value: summary?.total_impressions || 0 },
-      { name: 'Clicks', value: summary?.total_clicks || 0 },
-      { name: 'Conversions', value: summary?.total_conversions || 0 },
-      { name: 'CTR', value: (summary?.average_ctr || 0) * 100 }, // Convert to percentage
-      { name: 'CPC', value: summary?.average_cpc || 0 },
-      { name: 'Cost', value: summary?.total_cost || 0 }
-    ];
+      { name: t('dashboard.impressions'), value: summary?.total_impressions ?? 0 },
+      { name: t('dashboard.clicks'), value: summary?.total_clicks ?? 0 },
+      { name: t('dashboard.conversions'), value: summary?.total_conversions ?? 0 },
+      { name: t('dashboard.ctr'), value: (summary?.average_ctr ?? 0) * 100 }, // Convert to percentage
+      { name: t('dashboard.cpc'), value: summary?.average_cpc ?? 0 },
+      { name: t('dashboard.totalCost'), value: summary?.total_cost ?? 0 }
+    ].filter(item => item.value > 0); // Only show metrics with actual data
 
-    // Spend by account chart data
-    const spendData = (accounts || []).map(account => ({
-      name: account.account_info?.descriptive_name || `Account ${account.customer_id}`,
-      value: account.metrics?.cost || 0
-    })).slice(0, 10); // Limit to top 10 accounts
+    // Spend by account chart data - only include accounts with data
+    const spendData = (accounts ?? [])
+      .filter(account => account.metrics?.cost > 0)
+      .map(account => ({
+        name: account.account_info?.descriptive_name ?? `Account ${account.customer_id}`,
+        value: account.metrics.cost
+      }))
+      .slice(0, 10); // Limit to top 10 accounts
 
-    // Account performance chart data
-    const accountData = (accounts || []).map(account => ({
-      name: account.account_info?.descriptive_name || `Account ${account.customer_id}`,
-      value: account.metrics?.impressions || 0
-    })).slice(0, 8); // Limit to top 8 accounts
+    // Account performance chart data - only include accounts with data
+    const accountData = (accounts ?? [])
+      .filter(account => account.metrics?.impressions > 0)
+      .map(account => ({
+        name: account.account_info?.descriptive_name ?? `Account ${account.customer_id}`,
+        value: account.metrics.impressions
+      }))
+      .slice(0, 8); // Limit to top 8 accounts
 
     return {
       performanceData,
@@ -399,23 +408,32 @@ const Dashboard = () => {
   const createCombinedPerformanceData = () => {
     const combinedData = [];
 
-    // Add Meta data
-    if (metaOverallStats && metaOverallStats.result) {
-      const { overall_totals } = metaOverallStats.result;
+    // Check if Meta connections exist before including Meta data
+    const hasMetaConnections = platformConnections?.result?.meta_connections && 
+                                platformConnections.result.meta_connections.length > 0;
+    const hasMetaData = metaOverallStats && 
+                       metaOverallStats.result && 
+                       metaOverallStats.result.overall_totals;
+    const shouldIncludeMeta = hasMetaConnections && hasMetaData;
+
+    // Add Meta data only if Meta connections exist and has actual data
+    if (shouldIncludeMeta && metaStats) {
       combinedData.push(
-        { name: 'Meta Impressions', value: overall_totals?.impressions || 0, platform: 'Meta' },
-        { name: 'Meta Clicks', value: overall_totals?.clicks || 0, platform: 'Meta' },
-        { name: 'Meta Spend', value: overall_totals?.spend || 0, platform: 'Meta' }
+        { name: `${t('integrations.metaAds')} ${t('dashboard.impressions')}`, value: metaStats.totalImpressions ?? 0, platform: t('integrations.metaAds') },
+        { name: `${t('integrations.metaAds')} ${t('dashboard.clicks')}`, value: metaStats.totalClicks ?? 0, platform: t('integrations.metaAds') },
+        { name: `${t('integrations.metaAds')} ${t('dashboard.totalSpend')}`, value: metaStats.totalSpend ?? 0, platform: t('integrations.metaAds') }
       );
     }
 
-    // Add Google data
-    if (googleOverallStats && googleOverallStats.result) {
+    // Add Google data only if Google connections exist and has actual data
+    const hasGoogleConnections = platformConnections?.result?.google_accounts && 
+                                 platformConnections.result.google_accounts.length > 0;
+    if (hasGoogleConnections && googleOverallStats?.result?.summary) {
       const { summary } = googleOverallStats.result;
       combinedData.push(
-        { name: 'Google Impressions', value: summary?.total_impressions || 0, platform: 'Google' },
-        { name: 'Google Clicks', value: summary?.total_clicks || 0, platform: 'Google' },
-        { name: 'Google Cost', value: summary?.total_cost || 0, platform: 'Google' }
+        { name: `${t('integrations.googleAds')} ${t('dashboard.impressions')}`, value: summary.total_impressions ?? 0, platform: t('integrations.googleAds') },
+        { name: `${t('integrations.googleAds')} ${t('dashboard.clicks')}`, value: summary.total_clicks ?? 0, platform: t('integrations.googleAds') },
+        { name: `${t('integrations.googleAds')} ${t('dashboard.totalCost')}`, value: summary.total_cost ?? 0, platform: t('integrations.googleAds') }
       );
     }
 
@@ -428,25 +446,36 @@ const Dashboard = () => {
   const createPlatformComparisonData = () => {
     const comparisonData = [];
 
-    if (metaOverallStats && metaOverallStats.result) {
-      const { overall_totals } = metaOverallStats.result;
+    // Check if Meta connections exist before including Meta data
+    const hasMetaConnections = platformConnections?.result?.meta_connections && 
+                                platformConnections.result.meta_connections.length > 0;
+    const hasMetaData = metaOverallStats && 
+                       metaOverallStats.result && 
+                       metaOverallStats.result.overall_totals;
+    const shouldIncludeMeta = hasMetaConnections && hasMetaData;
+
+    // Add Meta data only if Meta connections exist and has actual data
+    if (shouldIncludeMeta && metaStats) {
       comparisonData.push({
-        name: 'Meta',
-        impressions: overall_totals?.impressions || 0,
-        clicks: overall_totals?.clicks || 0,
-        spend: overall_totals?.spend || 0,
-        ctr: (overall_totals?.ctr || 0) * 100
+        name: t('integrations.metaAds'),
+        impressions: metaStats.totalImpressions ?? 0,
+        clicks: metaStats.totalClicks ?? 0,
+        spend: metaStats.totalSpend ?? 0,
+        ctr: (metaStats.averageCTR ?? 0) * 100
       });
     }
 
-    if (googleOverallStats && googleOverallStats.result) {
+    // Add Google data only if Google connections exist and has actual data
+    const hasGoogleConnections = platformConnections?.result?.google_accounts && 
+                                 platformConnections.result.google_accounts.length > 0;
+    if (hasGoogleConnections && googleOverallStats?.result?.summary) {
       const { summary } = googleOverallStats.result;
       comparisonData.push({
-        name: 'Google',
-        impressions: summary?.total_impressions || 0,
-        clicks: summary?.total_clicks || 0,
-        spend: summary?.total_cost || 0,
-        ctr: (summary?.average_ctr || 0) * 100
+        name: t('integrations.googleAds'),
+        impressions: summary.total_impressions ?? 0,
+        clicks: summary.total_clicks ?? 0,
+        spend: summary.total_cost ?? 0,
+        ctr: (summary.average_ctr ?? 0) * 100
       });
     }
 
@@ -476,17 +505,16 @@ const Dashboard = () => {
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <LinkIcon className="w-8 h-8" />
             </div>
-            <h2 className="text-2xl font-bold mb-3">Connect Your Advertising Platforms</h2>
+            <h2 className="text-2xl font-bold mb-3">{t('dashboard.platformConnections')}</h2>
             <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-              To view your analytics dashboard, you need to connect at least one advertising platform.
-              Connect your Google Ads, Meta Ads, TikTok Ads, or other platforms to get started.
+              {t('dashboard.noConnections')} {t('dashboard.connectPlatform')}
             </p>
             <button
               onClick={handleConnectIntegrations}
-              className="inline-flex items-center space-x-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors rtl:space-x-reverse"
             >
               <PlusIcon className="w-5 h-5" />
-              <span>Connect Integrations</span>
+              <span>{t('dashboard.connectNow')}</span>
             </button>
           </div>
         </motion.div>
@@ -497,29 +525,37 @@ const Dashboard = () => {
         <>
           {/* Page Header */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rtl:flex-row-reverse">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Analytics Dashboard
+                  {t('dashboard.analyticsDashboard')}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  Overview of your advertising performance across all integrations
+                  {t('dashboard.overviewDescription')}
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 rtl:flex-row-reverse">
                 <span className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
-                  {metrics.activeIntegrations} Active
+                  {metrics.activeIntegrations} {t('dashboard.active')}
                 </span>
                 {metrics.errorIntegrations > 0 && (
                   <span className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-full text-sm font-medium">
-                    {metrics.errorIntegrations} Errors
+                    {metrics.errorIntegrations} {t('dashboard.errors')}
                   </span>
                 )}
                 <button
                   onClick={handleManualMetaDispatch}
                   className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-full text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors"
                 >
-                  Test Meta API
+                  {t('dashboard.testMetaAPI')}
+                </button>
+                <button
+                  onClick={handleManualGoogleRefresh}
+                  disabled={googleOverallStatsLoading}
+                  className="px-3 py-1 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-full text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={t('dashboard.refreshGoogleAdsData', 'Refresh Google Ads data')}
+                >
+                  {googleOverallStatsLoading ? (t('dashboard.refreshing', 'Refreshing...')) : (t('dashboard.refreshGoogle', 'Refresh Google'))}
                 </button>
               </div>
             </div>
@@ -528,40 +564,37 @@ const Dashboard = () => {
           {/* Key Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard
-              title="Total Spend"
-              value={formatCurrency(metrics.totalSpend + metaStats.totalSpend + (googleOverallStats?.result?.summary?.total_cost || 0))}
+              title={t('dashboard.totalSpend')}
+              value={new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: combinedTotals.currency,
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+              }).format(combinedTotals.totalSpend)}
               icon={CurrencyDollarIcon}
               color="green"
-              trend="+12.5%"
-              trendDirection="up"
-              dataSources={['meta', 'google']}
+              dataSources={activeDataSources}
             />
             <StatCard
-              title="Impressions"
-              value={formatNumber(metrics.totalImpressions + metaStats.totalImpressions + (googleOverallStats?.result?.summary?.total_impressions || 0))}
+              title={t('dashboard.impressions')}
+              value={formatNumber(combinedTotals.totalImpressions)}
               icon={EyeIcon}
               color="blue"
-              trend="+8.2%"
-              trendDirection="up"
-              dataSources={['meta', 'google']}
+              dataSources={activeDataSources}
             />
             <StatCard
-              title="Clicks"
-              value={formatNumber(metrics.totalClicks + metaStats.totalClicks + (googleOverallStats?.result?.summary?.total_clicks || 0))}
+              title={t('dashboard.clicks')}
+              value={formatNumber(combinedTotals.totalClicks)}
               icon={CursorArrowRaysIcon}
               color="purple"
-              trend="+15.3%"
-              trendDirection="up"
-              dataSources={['meta', 'google']}
+              dataSources={activeDataSources}
             />
             <StatCard
-              title="CTR"
-              value={`${((metrics.totalClicks + metaStats.totalClicks + (googleOverallStats?.result?.summary?.total_clicks || 0)) / (metrics.totalImpressions + metaStats.totalImpressions + (googleOverallStats?.result?.summary?.total_impressions || 0)) * 100).toFixed(2)}%`}
+              title={t('dashboard.ctr')}
+              value={`${combinedTotals.totalImpressions > 0 ? ((combinedTotals.totalClicks / combinedTotals.totalImpressions) * 100).toFixed(2) : '0.00'}%`}
               icon={ChartBarIcon}
               color="orange"
-              trend="+22.1%"
-              trendDirection="up"
-              dataSources={['meta', 'google']}
+              dataSources={activeDataSources}
             />
           </div>
 
@@ -571,31 +604,31 @@ const Dashboard = () => {
           {/* Combined Performance Overview */}
           {(metaOverallStats || googleOverallStats) && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Performance Overview</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('dashboard.performanceOverview')}</h2>
 
               {/* Combined Performance Charts */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* Platform Comparison Chart */}
                 <ChartCard
-                  title="Platform Performance Comparison"
-                  subtitle="Impressions, clicks, and spend by platform"
+                  title={t('dashboard.platformPerformanceComparison')}
+                  subtitle={t('dashboard.platformComparisonSubtitle')}
                   data={platformComparisonData.map(platform => ({
                     name: platform.name,
                     value: platform.impressions
                   }))}
                   type="bar"
                   height={300}
-                  noDataMessage="No platform comparison data available"
+                  noDataMessage={t('dashboard.noPlatformComparisonData')}
                 />
 
                 {/* Combined Metrics Chart */}
                 <ChartCard
-                  title="Combined Performance Metrics"
-                  subtitle="Key metrics across all platforms"
+                  title={t('dashboard.combinedPerformanceMetrics')}
+                  subtitle={t('dashboard.combinedMetricsSubtitle')}
                   data={combinedPerformanceData}
                   type="bar"
                   height={300}
-                  noDataMessage="No combined metrics data available"
+                  noDataMessage={t('dashboard.noCombinedMetricsData')}
                 />
               </div>
             </div>
@@ -603,23 +636,23 @@ const Dashboard = () => {
 
           {/* Meta Advertising Stats */}
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Meta Advertising Stats</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('dashboard.metaAdvertisingStats')}</h2>
 
             {metaLoading.overallStats && (
               <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600 dark:text-gray-400">Loading Meta stats...</span>
+                <span className="ml-3 text-gray-600 dark:text-gray-400 rtl:mr-3 rtl:ml-0">{t('dashboard.loadingMetaStats')}</span>
               </div>
             )}
 
             {metaErrors.overallStats && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2" />
-                  <span className="text-red-700 dark:text-red-400 font-medium">Error loading Meta stats</span>
+                <div className="flex items-center rtl:flex-row-reverse">
+                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2 rtl:mr-0 rtl:ml-2" />
+                  <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingMetaStats')}</span>
                 </div>
                 <p className="text-red-600 dark:text-red-300 text-sm mt-1">
-                  {typeof metaErrors.overallStats === 'string' ? metaErrors.overallStats : 'Failed to fetch Meta data'}
+                  {typeof metaErrors.overallStats === 'string' ? metaErrors.overallStats : t('dashboard.failedToFetchMetaData')}
                 </p>
               </div>
             )}
@@ -632,27 +665,32 @@ const Dashboard = () => {
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                       {metaStats.totalAdAccounts}
                     </div>
-                    <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Ad Accounts</div>
+                    <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">{t('dashboard.totalAdAccounts')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {metaStats.activeAdAccounts} Active
+                      {metaStats.activeAdAccounts} {t('dashboard.active')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {formatCurrency(metaStats.totalSpend)}
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: metaOverallStats?.result?.primary_currency || metaOverallStats?.result?.overall_totals?.currency || 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(metaStats.totalSpend)}
                     </div>
-                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">Total Spend</div>
+                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.totalSpend')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatNumber(metaStats.totalImpressions)} Impressions
+                      {formatNumber(metaStats.totalImpressions)} {t('dashboard.impressions')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                       {formatNumber(metaStats.totalClicks)}
                     </div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">Total Clicks</div>
+                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.totalClicks')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {metaStats.averageCTR.toFixed(2)}% CTR
+                      {metaStats.averageCTR.toFixed(2)}% {t('dashboard.ctr')}
                     </div>
                   </div>
                 </div>
@@ -661,38 +699,38 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {/* Performance Metrics Chart */}
                   <ChartCard
-                    title="Meta Performance Metrics"
-                    subtitle="Key performance indicators"
+                    title={t('dashboard.metaPerformanceMetrics')}
+                    subtitle={t('dashboard.keyPerformanceIndicators')}
                     data={metaChartData.performanceData}
                     type="bar"
                     height={300}
-                    noDataMessage="No performance data available"
+                    noDataMessage={t('dashboard.noPerformanceData')}
                   />
 
                   {/* Spend by Account Chart */}
                   <ChartCard
-                    title="Spend by Ad Account"
-                    subtitle="Top 10 accounts by spend"
+                    title={t('dashboard.spendByAdAccount')}
+                    subtitle={t('dashboard.topAccountsBySpend')}
                     data={metaChartData.spendData}
                     type="bar"
                     height={300}
-                    noDataMessage="No spend data available"
+                    noDataMessage={t('dashboard.noSpendData')}
                   />
 
                   {/* Account Performance Chart */}
                   <ChartCard
-                    title="Account Performance"
-                    subtitle="Impressions by account"
+                    title={t('dashboard.accountPerformance')}
+                    subtitle={t('dashboard.impressionsByAccount')}
                     data={metaChartData.accountData}
                     type="bar"
                     height={300}
-                    noDataMessage="No account performance data available"
+                    noDataMessage={t('dashboard.noAccountPerformanceData')}
                   />
                 </div>
 
                 {/* Ad Accounts List */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ad Accounts</h4>
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.adAccounts')}</h4>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
                     {metaStats.adAccounts.map((account, index) => (
                       <div key={account.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -709,10 +747,15 @@ const Dashboard = () => {
                         </div>
                         <div className="text-right flex-shrink-0 ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(account.totals.spend)}
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: account.currency || 'USD',
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0
+                            }).format(account.totals.spend)}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatNumber(account.totals.impressions)} impressions
+                            {formatNumber(account.totals.impressions)} {t('dashboard.impressionsLabel')}
                           </div>
                         </div>
                       </div>
@@ -724,31 +767,31 @@ const Dashboard = () => {
 
             {!metaOverallStats && !metaLoading.overallStats && !metaErrors.overallStats && (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <p>No Meta data available. Click "Test Meta API" to fetch data.</p>
+                <p>{t('dashboard.noMetaDataAvailable')}</p>
               </div>
             )}
           </div>
 
           {/* Google Advertising Stats */}
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Google Advertising Stats</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('dashboard.googleAdvertisingStats')}</h2>
 
             {/* Google Stats Cards */}
             {googleOverallStatsLoading && (
               <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                <span className="ml-3 text-gray-600 dark:text-gray-400">Loading Google stats...</span>
+                <span className="ml-3 text-gray-600 dark:text-gray-400 rtl:mr-3 rtl:ml-0">{t('dashboard.loadingGoogleStats')}</span>
               </div>
             )}
 
             {googleOverallStatsError && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2" />
-                  <span className="text-red-700 dark:text-red-400 font-medium">Error loading Google stats</span>
+                <div className="flex items-center rtl:flex-row-reverse">
+                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2 rtl:mr-0 rtl:ml-2" />
+                  <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingGoogleStats')}</span>
                 </div>
                 <p className="text-red-600 dark:text-red-300 text-sm mt-1">
-                  {typeof googleOverallStatsError === 'string' ? googleOverallStatsError : 'Failed to fetch Google data'}
+                  {typeof googleOverallStatsError === 'string' ? googleOverallStatsError : t('dashboard.failedToFetchGoogleData')}
                 </p>
               </div>
             )}
@@ -761,27 +804,32 @@ const Dashboard = () => {
                     <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                       {googleOverallStats.result.summary?.total_accounts || 0}
                     </div>
-                    <div className="text-sm text-red-600 dark:text-red-400 font-medium">Total Ad Accounts</div>
+                    <div className="text-sm text-red-600 dark:text-red-400 font-medium">{t('dashboard.totalAdAccounts')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {googleOverallStats.result.summary?.active_accounts || 0} Active
+                      {googleOverallStats.result.summary?.valid_accounts || 0} {t('dashboard.active')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {formatCurrency(googleOverallStats.result.summary?.total_cost || 0)}
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: googleOverallStats.result.summary?.total_cost_currency || googleOverallStats.result.summary?.primary_currency || 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(googleOverallStats.result.summary?.total_cost || 0)}
                     </div>
-                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">Total Cost</div>
+                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.totalCost')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatNumber(googleOverallStats.result.summary?.total_impressions || 0)} Impressions
+                      {formatNumber(googleOverallStats.result.summary?.total_impressions || 0)} {t('dashboard.impressions')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                       {formatNumber(googleOverallStats.result.summary?.total_clicks || 0)}
                     </div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">Total Clicks</div>
+                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.totalClicks')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {(googleOverallStats.result.summary?.average_ctr || 0).toFixed(2)}% CTR
+                      {(googleOverallStats.result.summary?.average_ctr || 0).toFixed(2)}% {t('dashboard.ctr')}
                     </div>
                   </div>
                 </div>
@@ -790,59 +838,64 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   {/* Performance Metrics Chart */}
                   <ChartCard
-                    title="Google Performance Metrics"
-                    subtitle="Key performance indicators"
+                    title={t('dashboard.googlePerformanceMetrics')}
+                    subtitle={t('dashboard.keyPerformanceIndicators')}
                     data={googleChartData.performanceData}
                     type="bar"
                     height={300}
-                    noDataMessage="No performance data available"
+                    noDataMessage={t('dashboard.noPerformanceData')}
                   />
 
                   {/* Spend by Account Chart */}
                   <ChartCard
-                    title="Spend by Ad Account"
-                    subtitle="Top 10 accounts by spend"
+                    title={t('dashboard.spendByAdAccount')}
+                    subtitle={t('dashboard.topAccountsBySpend')}
                     data={googleChartData.spendData}
                     type="bar"
                     height={300}
-                    noDataMessage="No spend data available"
+                    noDataMessage={t('dashboard.noSpendData')}
                   />
 
                   {/* Account Performance Chart */}
                   <ChartCard
-                    title="Account Performance"
-                    subtitle="Impressions by account"
+                    title={t('dashboard.accountPerformance')}
+                    subtitle={t('dashboard.impressionsByAccount')}
                     data={googleChartData.accountData}
                     type="bar"
                     height={300}
-                    noDataMessage="No account performance data available"
+                    noDataMessage={t('dashboard.noAccountPerformanceData')}
                   />
                 </div>
 
                 {/* Ad Accounts List */}
                 {googleOverallStats.result.accounts && googleOverallStats.result.accounts.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ad Accounts</h4>
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.adAccounts')}</h4>
                     <div className="space-y-3 max-h-80 overflow-y-auto">
                       {googleOverallStats.result.accounts.map((account, index) => (
                         <div key={account.customer_id || index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                           <div className="flex items-center space-x-3 min-w-0 flex-1">
-                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${account.account_info?.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${!account.account_info?.is_test_account && (account.metrics?.impressions > 0 || account.metrics?.clicks > 0) ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                             <div className="min-w-0 flex-1">
                               <div className="font-medium text-gray-900 dark:text-white truncate">
-                                {account.account_info?.descriptive_name || 'Unknown Account'}
+                                {account.account_info?.descriptive_name || t('dashboard.unknownAccount')}
                               </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                {account.customer_id} • {account.account_info?.currency_code || 'USD'}
+                                {account.customer_id} • {account.account_info?.currency_code || account.metrics?.cost_currency || 'USD'}
                               </div>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-4">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatCurrency(account.metrics?.cost || 0)}
+                              {new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: account.metrics?.cost_currency || account.account_info?.currency_code || 'USD',
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                              }).format(account.metrics?.cost || 0)}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatNumber(account.metrics?.impressions || 0)} impressions
+                              {formatNumber(account.metrics?.impressions || 0)} {t('dashboard.impressionsLabel')}
                             </div>
                           </div>
                         </div>
@@ -855,7 +908,7 @@ const Dashboard = () => {
 
             {!googleOverallStats && !googleOverallStatsLoading && !googleOverallStatsError && (
               <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <p>No Google data available. Connect your Google Ads account to view stats.</p>
+                <p>{t('dashboard.noConnections')}</p>
               </div>
             )}
           </div>
@@ -864,35 +917,40 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Performance Metrics */}
             <div className="lg:col-span-2">
-              <ChartCard title="Performance Metrics">
+              <ChartCard title={t('dashboard.performanceMetrics')}>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                       {ctr.toFixed(2)}%
                     </div>
-                    <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">CTR</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Click-through Rate</div>
+                    <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">{t('dashboard.ctr')}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.clickThroughRate')}</div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                       {conversionRate.toFixed(2)}%
                     </div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">Conv. Rate</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Conversion Rate</div>
+                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.convRate')}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.conversionRate')}</div>
                   </div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {formatCurrency(cpa)}
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: combinedTotals.currency,
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(cpa)}
                     </div>
-                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">CPA</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Cost per Acquisition</div>
+                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.cpa')}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.costPerAcquisition')}</div>
                   </div>
                 </div>
               </ChartCard>
             </div>
 
             {/* Platform Status */}
-            <ChartCard title="Platform Status">
+            <ChartCard title={t('dashboard.platformStatus')}>
               <div className="space-y-3">
                 {platformBreakdown.map((platform, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -917,7 +975,7 @@ const Dashboard = () => {
           </div>
 
           {/* Recent Activity */}
-          <ChartCard title="Recent Activity">
+          <ChartCard title={t('dashboard.recentActivity')}>
             <div className="space-y-4">
               {recentActivity.map((integration, index) => (
                 <motion.div
@@ -925,9 +983,9 @@ const Dashboard = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg rtl:flex-row-reverse"
                 >
-                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  <div className="flex items-center space-x-3 min-w-0 flex-1 rtl:space-x-reverse">
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${integration.status === 'active' ? 'bg-green-500' :
                         integration.status === 'error' ? 'bg-red-500' : 'bg-gray-500'
                       }`}></div>
@@ -940,12 +998,12 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-4">
+                  <div className="text-right flex-shrink-0 ml-4 rtl:ml-0 rtl:mr-4 rtl:text-left">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {integration.integrations.length} platforms
+                      {integration.integrations.length} {t('dashboard.platforms')}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Updated {integration.updatedDate}
+                      {t('dashboard.updated')} {integration.updatedDate}
                     </div>
                   </div>
                 </motion.div>

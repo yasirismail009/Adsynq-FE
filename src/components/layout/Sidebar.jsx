@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { 
   HomeIcon, 
   ChartBarIcon, 
@@ -16,20 +18,27 @@ import {
   ExclamationTriangleIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
-import { useIntegrations } from '../../hooks/useIntegrations';
+import { fetchPlatformConnections, selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 const Sidebar = ({ isCollapsed, onToggle }) => {
+  const { t } = useTranslation();
   const location = useLocation();
-  const { integrations } = useIntegrations();
+  const dispatch = useDispatch();
+  const platformConnections = useSelector(selectPlatformConnections);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: HomeIcon, href: '/dashboard' },
-    { id: 'integrations', label: 'Integrations', icon: ChartBarIcon, href: '/integrations' },
-    { id: 'analytics', label: 'Analytics', icon: ChartBarIcon, href: '/analytics' },
-    { id: 'settings', label: 'Settings', icon: CogIcon, href: '/settings' },
+    { id: 'dashboard', label: t('sidebar.dashboard'), icon: HomeIcon, href: '/dashboard' },
+    { id: 'integrations', label: t('sidebar.integrations'), icon: ChartBarIcon, href: '/integrations' },
+    { id: 'analytics', label: t('sidebar.analytics'), icon: ChartBarIcon, href: '/analytics' },
+    { id: 'settings', label: t('sidebar.settings'), icon: CogIcon, href: '/settings' },
   ];
 
-  // Platform configuration for icons and colors
+  // Fetch platform connections on mount
+  useEffect(() => {
+    dispatch(fetchPlatformConnections());
+  }, [dispatch]);
+
+  // Platform configuration for icons and colors (currently only Google and Meta supported)
   const platformConfig = {
     google: { 
       name: 'Google Ads', 
@@ -42,36 +51,54 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
       icon: '/assets/facebook.svg',
       color: 'text-blue-600',
       bgColor: 'bg-blue-100 dark:bg-blue-900/20'
-    },
-    tiktok: { 
-      name: 'TikTok Ads', 
-      icon: '/assets/tiktok.svg',
-      color: 'text-black dark:text-white',
-      bgColor: 'bg-gray-100 dark:bg-gray-700'
-    },
-    shopify: { 
-      name: 'Shopify', 
-      icon: '/assets/shopify.svg',
-      color: 'text-green-600',
-      bgColor: 'bg-green-100 dark:bg-green-900/20'
-    },
-    linkedin: { 
-      name: 'LinkedIn Ads', 
-      icon: '/assets/linkdln.svg',
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-100 dark:bg-blue-900/20'
-    },
-    apple: { 
-      name: 'Apple Search Ads', 
-      icon: '🍎',
-      color: 'text-gray-800 dark:text-gray-200',
-      bgColor: 'bg-gray-100 dark:bg-gray-700'
     }
   };
 
-  // Get connected integrations
-  const connectedIntegrations = integrations.filter(integ => integ.status === 'active');
-  const needsRefreshIntegrations = integrations.filter(integ => integ.status === 'needs_refresh');
+  // Process platform connections directly from API response
+  const connections = [];
+  
+  if (platformConnections?.error === false && platformConnections?.result) {
+    const result = platformConnections.result;
+    
+    // Process Google accounts - take first active one
+    if (result.google_accounts && Array.isArray(result.google_accounts) && result.google_accounts.length > 0) {
+      const googleAccount = result.google_accounts[0];
+      const googleUser = googleAccount.google_account || {};
+      const isActive = googleAccount.is_active && !googleAccount.is_token_expired;
+      const needsRefresh = googleAccount.needs_refresh || googleAccount.is_token_expired;
+      
+      connections.push({
+        id: `google-${googleAccount.google_account_id}`,
+        platformType: 'google',
+        name: googleUser.name || 'Google User',
+        email: googleUser.email || 'google@example.com',
+        picture: googleUser.picture || null,
+        status: isActive ? 'active' : needsRefresh ? 'needs_refresh' : 'inactive',
+        accountId: googleAccount.google_account_id
+      });
+    }
+    
+    // Process Meta connections - take first active one
+    if (result.meta_connections && Array.isArray(result.meta_connections) && result.meta_connections.length > 0) {
+      const metaConnection = result.meta_connections[0];
+      const isActive = metaConnection.is_active && !metaConnection.is_token_expired;
+      const needsRefresh = metaConnection.needs_refresh || metaConnection.is_token_expired;
+      
+      connections.push({
+        id: `meta-${metaConnection.connection_id}`,
+        platformType: 'meta',
+        name: metaConnection.account_name || 'Meta Business Account',
+        email: metaConnection.account_email || 'business@example.com',
+        picture: null,
+        status: isActive ? 'active' : needsRefresh ? 'needs_refresh' : 'inactive',
+        accountId: metaConnection.connection_id,
+        connectionId: metaConnection.connection_id
+      });
+    }
+  }
+  
+  const connectedIntegrations = connections.filter(conn => conn.status === 'active');
+  const needsRefreshIntegrations = connections.filter(conn => conn.status === 'needs_refresh');
 
   // Get status icon and color
   const getStatusInfo = (status) => {
@@ -105,14 +132,14 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
       className="h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 rtl:flex-row-reverse">
         <AnimatePresence mode="wait">
           {!isCollapsed && (
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 rtl:space-x-reverse"
             >
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">A</span>
@@ -127,9 +154,9 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
           className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
           {isCollapsed ? (
-            <ChevronRightIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ChevronRightIcon className="w-5 h-5 text-gray-600 dark:text-gray-400 rtl:rotate-180" />
           ) : (
-            <ChevronLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ChevronLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400 rtl:rotate-180" />
           )}
         </button>
       </div>
@@ -181,7 +208,7 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
                   <div className="flex items-center space-x-2 px-3 py-2">
                     <LinkIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                     <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Connected Platforms
+                      {t('sidebar.connectedPlatforms')}
                     </span>
                   </div>
                 </motion.div>
@@ -190,17 +217,15 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
 
             <div className="space-y-1">
               {/* Active Integrations */}
-              {connectedIntegrations.map((integration) => {
-                const primaryPlatform = integration.integrations.find(p => p.status === 'active') || integration.integrations[0];
-                const platformType = primaryPlatform?.type || 'google';
-                const platform = platformConfig[platformType] || platformConfig.google;
+              {connectedIntegrations.map((connection) => {
+                const platform = platformConfig[connection.platformType] || platformConfig.google;
                 const statusInfo = getStatusInfo('active');
                 const StatusIcon = statusInfo.icon;
 
                 return (
                   <Link
-                    key={integration.id}
-                    to={platformType === 'meta' ? `/facebook/${integration.id}` : `/platform/${integration.id}`}
+                    key={connection.id}
+                    to={connection.platformType === 'meta' ? `/meta/${connection.id}` : '/google'}
                     className="flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white group"
                   >
                     {/* Platform Icon */}
@@ -232,9 +257,9 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
                             </span>
                             <StatusIcon className={`w-3 h-3 ${statusInfo.color}`} />
                           </div>
-                          {integration.userData?.name && (
+                          {connection.name && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {integration.userData.name}
+                              {connection.name}
                             </p>
                           )}
                         </motion.div>
@@ -245,17 +270,15 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
               })}
 
               {/* Needs Refresh Integrations */}
-              {needsRefreshIntegrations.map((integration) => {
-                const primaryPlatform = integration.integrations.find(p => p.status === 'needs_refresh') || integration.integrations[0];
-                const platformType = primaryPlatform?.type || 'google';
-                const platform = platformConfig[platformType] || platformConfig.google;
+              {needsRefreshIntegrations.map((connection) => {
+                const platform = platformConfig[connection.platformType] || platformConfig.google;
                 const statusInfo = getStatusInfo('needs_refresh');
                 const StatusIcon = statusInfo.icon;
 
                 return (
                   <Link
-                    key={integration.id}
-                    to={platformType === 'meta' ? `/facebook/${integration.id}` : `/platform/${integration.id}`}
+                    key={connection.id}
+                    to={connection.platformType === 'meta' ? `/meta/${connection.id}` : '/google'}
                     className="flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white group"
                   >
                     {/* Platform Icon */}
@@ -314,11 +337,11 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
                   <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400">
                     <LinkIcon className="w-4 h-4" />
                     <span className="text-xs font-semibold uppercase tracking-wide">
-                      No Connected Platforms
+                      {t('sidebar.noConnectedPlatforms')}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6">
-                    Connect platforms in Integrations
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6 rtl:mr-6 rtl:ml-0">
+                    {t('sidebar.connectPlatforms')}
                   </p>
                 </motion.div>
               )}

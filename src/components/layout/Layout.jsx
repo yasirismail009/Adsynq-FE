@@ -1,6 +1,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
@@ -50,6 +51,7 @@ const ErrorBoundary = ({ children }) => {
 };
 
 const Layout = ({ children }) => {
+  const { t } = useTranslation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -61,17 +63,17 @@ const Layout = ({ children }) => {
     const path = location.pathname;
     switch (path) {
       case '/dashboard':
-        return 'Dashboard';
+        return t('sidebar.dashboard');
       case '/integrations':
-        return 'Integrations';
+        return t('sidebar.integrations');
       case '/analytics':
-        return 'Analytics';
+        return t('sidebar.analytics');
       case '/customers':
         return 'Customers';
       case '/reports':
         return 'Reports';
       case '/settings':
-        return 'Settings';
+        return t('sidebar.settings');
       default:
         return 'AdSynq';
     }
@@ -80,21 +82,22 @@ const Layout = ({ children }) => {
   // Get breadcrumb based on current route
   const getBreadcrumb = () => {
     const path = location.pathname;
+    const dashboard = t('sidebar.dashboard');
     switch (path) {
       case '/dashboard':
-        return 'Dashboard';
+        return dashboard;
       case '/integrations':
-        return 'Dashboard > Integrations';
+        return `${dashboard} > ${t('sidebar.integrations')}`;
       case '/analytics':
-        return 'Dashboard > Analytics';
+        return `${dashboard} > ${t('sidebar.analytics')}`;
       case '/customers':
-        return 'Dashboard > Customers';
+        return `${dashboard} > Customers`;
       case '/reports':
-        return 'Dashboard > Reports';
+        return `${dashboard} > Reports`;
       case '/settings':
-        return 'Dashboard > Settings';
+        return `${dashboard} > ${t('sidebar.settings')}`;
       default:
-        return 'Dashboard';
+        return dashboard;
     }
   };
 
@@ -164,7 +167,7 @@ const Layout = ({ children }) => {
                 animate={{ x: 0 }}
                 exit={{ x: -280 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed left-0 top-0 h-full z-50 lg:hidden"
+                className="fixed left-0 top-0 h-full z-50 lg:hidden rtl:left-auto rtl:right-0"
               >
                 <Sidebar 
                   isCollapsed={false} 
@@ -195,7 +198,7 @@ const Layout = ({ children }) => {
               </div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{getPageTitle()}</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
-                Welcome back! Here's what's happening with your business today.
+                {t('auth.welcomeBack')}! {t('dashboard.overview')}
               </p>
             </motion.div>
           </div>

@@ -219,7 +219,7 @@ export const apiService = {
     googleDisconnect: (accountId) => axiosPrivate.post(`/marketing/google/disconnect/${accountId}/`),
     googleRefreshTokens: () => axiosPrivate.post(`/marketing/google/refresh-token/`),
     googleAccountData: (accountId) => axiosPrivate.get(`/marketing/google/account/${accountId}/`),
-    googleOverallStats: (params) => axiosPrivate.get('/marketing/sa360/overall-stats/', { 
+    googleOverallStats: (params) => axiosPrivate.get('/marketing/google/overall-stats/', { 
       params,
       timeout: 120000 // 2 minutes timeout for SA360 overall stats
     }),
@@ -230,6 +230,7 @@ export const apiService = {
     googleSa360DeviceTargeting: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/device-targeting/`, { params }),
     googleSa360AudienceTargeting: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/audience-targeting/`, { params }),
     googleSa360Assets: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/assets/`, { params }),
+    googleSa360CampaignAssets: (googleAccountId, customerId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaign-assets/`, { params }),
     metaConnect: (data) => axiosPrivate.post('/meta/connect/', data),
     metaDisconnect: (accountId) => axiosPrivate.post(`/meta/disconnect/${accountId}/`),
     metaRefreshTokens: (accountId) => axiosPrivate.post(`/meta/refresh-tokens/${accountId}/`),
