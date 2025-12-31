@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import Layout from './components/layout/Layout';
 import Dashboard from './components/dashboard/Dashboard';
+import ComparisonDashboard from './components/dashboard/ComparisonDashboard';
 import IntegrationsPage from './components/integrations/IntegrationsPage';
 import PlatformDashboard from './components/integrations/PlatformDashboard';
 import GoogleDashboard from './components/integrations/GoogleDashboard';
@@ -154,6 +155,11 @@ function App() {
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Layout><Dashboard /></Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/comparison" element={
+              <ProtectedRoute>
+                <Layout><ComparisonDashboard /></Layout>
               </ProtectedRoute>
             } />
             <Route path="/integrations" element={

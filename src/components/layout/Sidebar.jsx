@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { 
-  HomeIcon, 
-  ChartBarIcon, 
-  UsersIcon, 
-  CogIcon, 
+import {
+  HomeIcon,
+  ChartBarIcon,
+  UsersIcon,
+  CogIcon,
   DocumentTextIcon,
   BellIcon,
   ChevronLeftIcon,
@@ -16,7 +16,8 @@ import {
   LinkIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
-  ClockIcon
+  ClockIcon,
+  ScaleIcon
 } from '@heroicons/react/24/outline';
 import { fetchPlatformConnections, selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
@@ -28,6 +29,7 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
 
   const menuItems = [
     { id: 'dashboard', label: t('sidebar.dashboard'), icon: HomeIcon, href: '/dashboard' },
+    { id: 'comparison', label: 'ROI', icon: ScaleIcon, href: '/comparison' },
     { id: 'integrations', label: t('sidebar.integrations'), icon: ChartBarIcon, href: '/integrations' },
     { id: 'analytics', label: t('sidebar.analytics'), icon: ChartBarIcon, href: '/analytics' },
     { id: 'settings', label: t('sidebar.settings'), icon: CogIcon, href: '/settings' },
@@ -126,8 +128,8 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
 
   return (
     <motion.div
-      initial={{ width: isCollapsed ? 64 : 280 }}
-      animate={{ width: isCollapsed ? 64 : 280 }}
+      initial={{ width: isCollapsed ? 64 : 220 }}
+      animate={{ width: isCollapsed ? 64 : 220 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       className="h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col"
     >

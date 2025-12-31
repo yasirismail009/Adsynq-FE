@@ -767,10 +767,6 @@ const IntegrationsPage = () => {
         )}
       </div>
 
-      {/* SA360 Campaign Assets API Test */}
-      <div className="mb-6">
-        <SA360CampaignAssetsTest />
-      </div>
 
       {/* Integrations Grid */}
       <div className={`grid gap-6 ${

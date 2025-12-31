@@ -37,7 +37,7 @@ export const fetchMetaUserAdAccounts = createAsyncThunk(
       return response.data;
     } catch (error) {
       console.error('Error fetching Meta user ad accounts:', error);
-      
+
       // Extract error message from response data
       let errorMessage = 'Failed to fetch Meta user ad accounts';
       if (error.response?.data) {
@@ -49,7 +49,34 @@ export const fetchMetaUserAdAccounts = createAsyncThunk(
           errorMessage = error.response.data.error;
         }
       }
-      
+
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for fetching Meta ad accounts
+export const fetchMetaAdAccounts = createAsyncThunk(
+  'meta/fetchAdAccounts',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiService.marketing.metaAdAccounts();
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Meta ad accounts:', error);
+
+      // Extract error message from response data
+      let errorMessage = 'Failed to fetch Meta ad accounts';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+
       return rejectWithValue(errorMessage);
     }
   }
@@ -245,11 +272,12 @@ export const fetchMetaCampaignInsightsPublisherPlatform = createAsyncThunk(
 const initialState = {
   overallStats: null,
   userAdAccounts: null,
+  adAccounts: null,
   accountOverviewGraph: {}, // Store graph data by accountId
   campaignDetails: null,
   campaignPerformance: null,
   campaignData: null, // Single campaign data object
-  
+
   // Campaign Insights Data
   campaignInsightsBreakdowns: null,
   campaignInsightsHourly: null,
@@ -261,6 +289,7 @@ const initialState = {
   loading: {
     overallStats: false,
     userAdAccounts: false,
+    adAccounts: false,
     accountOverviewGraph: {}, // Track loading state per accountId
     campaignDetails: false,
     campaignPerformance: false,
@@ -276,6 +305,7 @@ const initialState = {
   errors: {
     overallStats: null,
     userAdAccounts: null,
+    adAccounts: null,
     accountOverviewGraph: {}, // Track errors per accountId
     campaignDetails: null,
     campaignPerformance: null,
@@ -502,6 +532,22 @@ const metaSlice = createSlice({
         state.errors.userAdAccounts = action.payload;
       });
 
+    // Fetch Meta ad accounts
+    builder
+      .addCase(fetchMetaAdAccounts.pending, (state) => {
+        state.loading.adAccounts = true;
+        state.errors.adAccounts = null;
+      })
+      .addCase(fetchMetaAdAccounts.fulfilled, (state, action) => {
+        state.loading.adAccounts = false;
+        state.adAccounts = action.payload;
+        state.errors.adAccounts = null;
+      })
+      .addCase(fetchMetaAdAccounts.rejected, (state, action) => {
+        state.loading.adAccounts = false;
+        state.errors.adAccounts = action.payload;
+      });
+
     // Fetch Meta account overview graph
     builder
       .addCase(fetchMetaAccountOverviewGraph.pending, (state, action) => {
@@ -677,6 +723,9 @@ const metaSlice = createSlice({
 // Selectors
 export const selectMetaOverallStats = (state) => state.meta.overallStats;
 export const selectMetaUserAdAccounts = (state) => state.meta.userAdAccounts;
+export const selectMetaAdAccounts = (state) => state.meta.adAccounts;
+export const selectMetaAdAccountsLoading = (state) => state.meta.loading.adAccounts;
+export const selectMetaAdAccountsError = (state) => state.meta.errors.adAccounts;
 export const selectMetaLoading = (state) => state.meta.loading;
 export const selectMetaErrors = (state) => state.meta.errors;
 

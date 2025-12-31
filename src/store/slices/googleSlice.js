@@ -127,6 +127,33 @@ export const fetchGoogleAccountData = createAsyncThunk(
   }
 );
 
+// Async thunk for fetching Google customers
+export const fetchGoogleCustomers = createAsyncThunk(
+  'google/fetchCustomers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiService.marketing.googleCustomers();
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Google customers:', error);
+
+      // Extract error message from response data
+      let errorMessage = 'Failed to fetch Google customers';
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 // Async thunk for fetching Google overall stats
 export const fetchGoogleOverallStats = createAsyncThunk(
   'google/fetchOverallStats',
@@ -388,11 +415,12 @@ const initialState = {
   disconnecting: false,
   refreshing: false,
   fetching: false,
-  
+
   // Connection data
   connectionData: null,
   connectedAccounts: [],
   currentAccount: null,
+  customers: null,
   
   // Overall stats data
   overallStats: null,
@@ -447,6 +475,7 @@ const initialState = {
   disconnectError: null,
   refreshError: null,
   fetchError: null,
+  customersError: null,
   
   // Success states
   connectionSuccess: false,
@@ -645,6 +674,21 @@ const googleSlice = createSlice({
         state.fetchError = action.payload;
       });
 
+    // Fetch Google customers
+    builder
+      .addCase(fetchGoogleCustomers.pending, (state) => {
+        state.fetching = true;
+        state.customersError = null;
+      })
+      .addCase(fetchGoogleCustomers.fulfilled, (state, action) => {
+        state.fetching = false;
+        state.customers = action.payload;
+      })
+      .addCase(fetchGoogleCustomers.rejected, (state, action) => {
+        state.fetching = false;
+        state.customersError = action.payload;
+      });
+
     // Fetch Google OAuth profile from store
     builder
       .addCase(fetchGoogleOAuthProfileFromStore.pending, (state) => {
@@ -835,6 +879,7 @@ export const selectGoogleRefreshSuccess = (state) => state.google.refreshSuccess
 export const selectGoogleTokens = (state) => state.google.tokens;
 export const selectGoogleOAuthState = (state) => state.google.oauthState;
 export const selectGoogleOAuthCode = (state) => state.google.oauthCode;
+export const selectGoogleCustomers = (state) => state.google.customers;
 
 // Overall stats selectors
 export const selectGoogleOverallStats = (state) => state.google.overallStats;

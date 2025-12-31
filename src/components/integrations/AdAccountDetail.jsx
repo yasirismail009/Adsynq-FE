@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -141,7 +141,7 @@ const AdAccountDetail = () => {
     if (!metaUserAdAccounts && accountId) {
       dispatch(fetchMetaUserAdAccounts());
     }
-  }, [metaUserAdAccounts, accountId]);
+  }, [metaUserAdAccounts, accountId, dispatch]);
   
   // Fetch data when component mounts or date range changes
   useEffect(() => {
@@ -152,7 +152,7 @@ const AdAccountDetail = () => {
         dispatch(fetchMetaAccountOverviewGraph({ accountId, dateRange }));
       }
     }
-  }, [accountId, dateRange.date_from, dateRange.date_to]);
+  }, [accountId, dateRange, dispatch]);
 
   // Find the specific ad account
   const account = metaUserAdAccounts?.result?.accounts?.find(acc => acc.id === accountId);
@@ -409,20 +409,11 @@ const AdAccountDetail = () => {
 
   // Extract variables from enhanced data extraction
   const {
-    apiData,
-    insights,
-    summary,
-    statistics,
     campaigns,
-    adsets,
-    ads,
-    accountInfo,
     metrics,
     enhancedStatistics,
     enhancedAccountInfo,
-    hasValidData,
-    hasMetrics,
-    apiValidation
+    hasValidData
   } = enhancedDataExtraction;
 
   // Prepare chart data
@@ -492,7 +483,7 @@ const AdAccountDetail = () => {
       accountHealthData,
       roiData
     };
-  }, [hasValidData, metrics, campaigns, enhancedStatistics]);
+  }, [hasValidData, metrics, campaigns, enhancedStatistics, t]);
 
   if (accountsLoading) {
     return (
