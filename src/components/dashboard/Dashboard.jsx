@@ -26,7 +26,7 @@ const Dashboard = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { integrations, loading } = useIntegrations();
+  const { integrations } = useIntegrations();
 
   // Use ref to track if API calls have been made (survives StrictMode double render)
   const hasInitialized = useRef(false);
@@ -57,18 +57,6 @@ const Dashboard = () => {
     }
   }, [dispatch]);
 
-  // Set up periodic refresh for Google data (every 30 seconds)
-  useEffect(() => {
-    // Don't set up interval if not initialized yet
-    if (!hasInitialized.current) return;
-
-    const refreshInterval = setInterval(() => {
-      dispatch(fetchGoogleOverallStats());
-    }, 30000); // Refresh every 30 seconds
-
-    // Cleanup interval on unmount
-    return () => clearInterval(refreshInterval);
-  }, [dispatch]);
 
   // Refresh Google data when window/tab comes into focus (but not on initial mount)
   useEffect(() => {
@@ -169,28 +157,72 @@ const Dashboard = () => {
 
   // Helper function to extract Meta stats - only returns data if it exists
   const getMetaStats = () => {
-    if (!metaOverallStats || !metaOverallStats.result || !metaOverallStats.result.overall_totals) {
+    if (!metaOverallStats || !metaOverallStats.result || !metaOverallStats.result.ad_accounts) {
       return null;
     }
 
     const { result } = metaOverallStats;
-    const { overall_totals, ad_accounts } = result;
+    const { ad_accounts, summary, conversion_totals } = result;
 
     // Only return stats if we have actual data
-    if (!overall_totals) {
+    if (!ad_accounts || ad_accounts.length === 0) {
       return null;
     }
 
+    // Aggregate data from all accounts and their campaigns
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalSpend = 0;
+    let totalConversions = 0;
+    let totalCampaigns = 0;
+    let totalBalance = 0;
+    let totalROI = 0;
+    let accountsWithROI = 0;
+
+    ad_accounts.forEach(account => {
+      // Account-level data
+      if (account.insights) {
+        totalImpressions += parseInt(account.insights.impressions) || 0;
+        totalClicks += parseInt(account.insights.clicks) || 0;
+        totalSpend += parseFloat(account.insights.spend) || 0;
+      }
+      
+      if (account.conversion_totals) {
+        totalConversions += parseInt(account.conversion_totals.conversions) || 0;
+      }
+      
+      totalBalance += parseFloat(account.balance) || 0;
+      totalCampaigns += account.campaigns_count || account.campaigns?.length || 0;
+      
+      if (account.roi) {
+        totalROI += parseFloat(account.roi);
+        accountsWithROI++;
+      }
+    });
+
+    // Use summary if available, otherwise calculate from accounts
+    const summaryData = summary || {};
+    const conversionTotals = conversion_totals || {};
+
+    // Calculate averages
+    const averageCTR = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
+    const averageCPC = totalClicks > 0 ? (totalSpend / totalClicks) : 0;
+    const averageCPM = totalImpressions > 0 ? (totalSpend / totalImpressions * 1000) : 0;
+
     return {
-      totalAdAccounts: result.total_ad_accounts ?? 0,
-      activeAdAccounts: result.active_ad_accounts ?? 0,
-      totalImpressions: overall_totals.impressions ?? 0,
-      totalClicks: overall_totals.clicks ?? 0,
-      totalSpend: overall_totals.spend ?? 0,
-      totalConversions: overall_totals.conversions ?? 0,
-      averageCTR: overall_totals.ctr ?? 0,
-      averageCPC: overall_totals.cpc ?? 0,
-      averageCPM: overall_totals.cpm ?? 0,
+      totalAdAccounts: summaryData.total_accounts || ad_accounts.length,
+      activeAdAccounts: summaryData.active_accounts || 0,
+      totalImpressions,
+      totalClicks,
+      totalSpend,
+      totalConversions: conversionTotals.total_conversions || totalConversions,
+      averageCTR: summaryData.insights?.ctr ? (summaryData.insights.ctr * 100) : averageCTR,
+      averageCPC: summaryData.insights?.cpc || averageCPC,
+      averageCPM: summaryData.insights?.cpm || averageCPM,
+      totalBalance: summaryData.total_balance || totalBalance,
+      totalCampaigns: summaryData.total_campaigns || totalCampaigns,
+      averageROI: summaryData.average_roi || (accountsWithROI > 0 ? totalROI / accountsWithROI : 0),
+      conversionTotals: conversionTotals,
       adAccounts: ad_accounts ?? []
     };
   };
@@ -210,7 +242,8 @@ const Dashboard = () => {
                                 platformConnections.result.meta_connections.length > 0;
     const hasMetaData = metaOverallStats && 
                        metaOverallStats.result && 
-                       metaOverallStats.result.overall_totals;
+                       metaOverallStats.result.ad_accounts &&
+                       metaOverallStats.result.ad_accounts.length > 0;
     
     const shouldIncludeMeta = hasMetaConnections && hasMetaData;
     
@@ -229,7 +262,7 @@ const Dashboard = () => {
       // Determine currency - prefer Google's currency if available, otherwise Meta's
       currency: googleOverallStats?.result?.summary?.primary_currency ?? 
                 googleOverallStats?.result?.summary?.total_cost_currency ?? 
-                (shouldIncludeMeta && metaOverallStats?.result?.primary_currency) ??
+                (shouldIncludeMeta && metaOverallStats?.result?.ad_accounts?.[0]?.currency) ??
                 'USD'
     };
 
@@ -252,6 +285,191 @@ const Dashboard = () => {
   const ctr = combinedTotals.totalImpressions > 0 ? (combinedTotals.totalClicks / combinedTotals.totalImpressions * 100) : 0;
   const conversionRate = combinedTotals.totalClicks > 0 ? (combinedTotals.totalConversions / combinedTotals.totalClicks * 100) : 0;
   const cpa = combinedTotals.totalConversions > 0 ? (combinedTotals.totalSpend / combinedTotals.totalConversions) : 0;
+
+  // Calculate efficiency metrics from combined totals
+  const calculateEfficiencyMetrics = (totals) => {
+    const {
+      totalSpend,
+      totalImpressions,
+      totalClicks,
+      totalConversions
+    } = totals;
+
+    // Cost per conversion (CPA) - already calculated above
+    const costPerConversion = totalConversions > 0 ? (totalSpend / totalConversions) : 0;
+
+    // Conversion efficiency rate (conversions / clicks * 100)
+    const conversionEfficiencyRate = totalClicks > 0 ? (totalConversions / totalClicks * 100) : 0;
+
+    // Cost efficiency metrics
+    const impressionsPerDollar = totalSpend > 0 ? (totalImpressions / totalSpend) : 0;
+    const clicksPerDollar = totalSpend > 0 ? (totalClicks / totalSpend) : 0;
+
+    // Performance efficiency score (composite metric 0-100)
+    const ctrScore = Math.min((totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0) * 10, 100);
+    const conversionScore = Math.min(conversionEfficiencyRate * 5, 50);
+    const costEfficiencyScore = Math.min((clicksPerDollar / 10) * 50, 50);
+    const efficiencyScore = ctrScore + conversionScore + costEfficiencyScore;
+
+    return {
+      costPerConversion,
+      conversionEfficiencyRate,
+      impressionsPerDollar,
+      clicksPerDollar,
+      efficiencyScore,
+      ctrScore,
+      conversionScore,
+      costEfficiencyScore
+    };
+  };
+
+  // Calculate efficiency metrics for combined, Meta, and Google
+  const combinedEfficiencyMetrics = calculateEfficiencyMetrics(combinedTotals);
+  
+  // Calculate Meta efficiency metrics
+  const metaEfficiencyMetrics = metaStats ? calculateEfficiencyMetrics({
+    totalSpend: metaStats.totalSpend,
+    totalImpressions: metaStats.totalImpressions,
+    totalClicks: metaStats.totalClicks,
+    totalConversions: metaStats.totalConversions
+  }) : null;
+
+  // Calculate Google efficiency metrics
+  const googleEfficiencyMetrics = googleOverallStats?.result?.summary ? calculateEfficiencyMetrics({
+    totalSpend: googleOverallStats.result.summary.total_cost || 0,
+    totalImpressions: googleOverallStats.result.summary.total_impressions || 0,
+    totalClicks: googleOverallStats.result.summary.total_clicks || 0,
+    totalConversions: googleOverallStats.result.summary.total_conversions || 0
+  }) : null;
+
+  // Calculate additional marketing KPIs
+  const calculateMarketingKPIs = () => {
+    // Meta-specific data
+    let totalReach = 0;
+    let totalFrequency = 0;
+    let totalRevenue = 0;
+    let totalPurchaseValue = 0;
+    let totalVideoViews = 0;
+    let totalEngagements = 0;
+    let totalCarts = 0;
+    let totalCheckouts = 0;
+    let accountsWithReach = 0;
+    let accountsWithFrequency = 0;
+
+    if (metaStats?.adAccounts) {
+      metaStats.adAccounts.forEach(account => {
+        if (account.insights) {
+          if (account.insights.reach) {
+            totalReach += parseInt(account.insights.reach) || 0;
+            accountsWithReach++;
+          }
+          if (account.insights.frequency) {
+            totalFrequency += parseFloat(account.insights.frequency) || 0;
+            accountsWithFrequency++;
+          }
+          
+          // Calculate total engagements from actions
+          if (account.insights.actions) {
+            account.insights.actions.forEach(action => {
+              const value = parseInt(action.value) || 0;
+              if (action.action_type === 'page_engagement' || action.action_type === 'post_engagement') {
+                totalEngagements += value;
+              }
+              if (action.action_type === 'video_view') {
+                totalVideoViews += value;
+              }
+              if (action.action_type === 'add_to_cart' || action.action_type === 'omni_add_to_cart') {
+                totalCarts += value;
+              }
+              if (action.action_type === 'initiate_checkout' || action.action_type === 'omni_initiated_checkout') {
+                totalCheckouts += value;
+              }
+            });
+          }
+        }
+        
+        // Get revenue from conversion totals
+        if (account.conversion_totals) {
+          totalPurchaseValue += parseFloat(account.conversion_totals.purchase_value) || 0;
+        }
+      });
+    }
+
+    // Get Meta conversion totals from summary if available
+    const metaConversionTotals = metaOverallStats?.result?.conversion_totals;
+    if (metaConversionTotals) {
+      totalPurchaseValue += parseFloat(metaConversionTotals.total_purchase_value) || 0;
+    }
+
+    totalRevenue = totalPurchaseValue;
+
+    // Calculate combined metrics
+    const avgReach = accountsWithReach > 0 ? totalReach / accountsWithReach : 0;
+    const avgFrequency = accountsWithFrequency > 0 ? totalFrequency / accountsWithFrequency : 0;
+    const totalReachFromMeta = totalReach;
+
+    // Google-specific data
+    const googleReach = 0; // Google doesn't provide reach directly in overall stats
+    
+    const combinedReach = totalReachFromMeta + googleReach;
+    const combinedRevenue = totalRevenue; // Only Meta provides revenue currently
+
+    // Calculate KPIs
+    const roas = combinedTotals.totalSpend > 0 ? (combinedRevenue / combinedTotals.totalSpend) : 0;
+    const roiPercentage = combinedTotals.totalSpend > 0 ? ((combinedRevenue - combinedTotals.totalSpend) / combinedTotals.totalSpend * 100) : 0;
+    const averageOrderValue = combinedTotals.totalConversions > 0 ? (combinedRevenue / combinedTotals.totalConversions) : 0;
+    const costPerReach = combinedReach > 0 ? (combinedTotals.totalSpend / combinedReach) : 0;
+    const reachRate = combinedTotals.totalImpressions > 0 ? (combinedReach / combinedTotals.totalImpressions * 100) : 0;
+    const engagementRate = combinedTotals.totalImpressions > 0 ? (totalEngagements / combinedTotals.totalImpressions * 100) : 0;
+    const videoViewRate = totalVideoViews > 0 ? (totalVideoViews / combinedTotals.totalImpressions * 100) : 0;
+    const cartToViewRate = combinedTotals.totalClicks > 0 ? (totalCarts / combinedTotals.totalClicks * 100) : 0;
+    const checkoutToCartRate = totalCarts > 0 ? (totalCheckouts / totalCarts * 100) : 0;
+    const purchaseToCheckoutRate = totalCheckouts > 0 ? (combinedTotals.totalConversions / totalCheckouts * 100) : 0;
+    const engagementsPerDollar = combinedTotals.totalSpend > 0 ? (totalEngagements / combinedTotals.totalSpend) : 0;
+    const videoViewsPerDollar = combinedTotals.totalSpend > 0 ? (totalVideoViews / combinedTotals.totalSpend) : 0;
+    const revenuePerClick = combinedTotals.totalClicks > 0 ? (combinedRevenue / combinedTotals.totalClicks) : 0;
+    const revenuePerImpression = combinedTotals.totalImpressions > 0 ? (combinedRevenue / combinedTotals.totalImpressions) : 0;
+
+    return {
+      // ROI & Revenue Metrics
+      roas,
+      roiPercentage,
+      totalRevenue: combinedRevenue,
+      averageOrderValue,
+      revenuePerClick,
+      revenuePerImpression,
+      
+      // Reach & Frequency Metrics
+      totalReach: combinedReach,
+      averageReach: avgReach,
+      averageFrequency: avgFrequency,
+      costPerReach,
+      reachRate,
+      
+      // Engagement Metrics
+      totalEngagements,
+      engagementRate,
+      engagementsPerDollar,
+      
+      // Video Metrics
+      totalVideoViews,
+      videoViewRate,
+      videoViewsPerDollar,
+      
+      // Funnel Metrics
+      totalCarts,
+      totalCheckouts,
+      cartToViewRate,
+      checkoutToCartRate,
+      purchaseToCheckoutRate,
+      
+      // Additional Efficiency Metrics
+      impressionsToReach: combinedReach > 0 ? (combinedTotals.totalImpressions / combinedReach) : 0,
+      uniqueClickRate: combinedReach > 0 ? (combinedTotals.totalClicks / combinedReach * 100) : 0,
+    };
+  };
+
+  const marketingKPIs = calculateMarketingKPIs();
 
   // Platform breakdown
   const getPlatformBreakdown = () => {
@@ -316,33 +534,55 @@ const Dashboard = () => {
     }
 
     const { result } = metaOverallStats;
-    const { overall_totals, ad_accounts } = result;
+    const { ad_accounts } = result;
+
+    // Aggregate data from accounts
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalSpend = 0;
+    let totalConversions = 0;
+
+    (ad_accounts ?? []).forEach(account => {
+      if (account.insights) {
+        totalImpressions += parseInt(account.insights.impressions) || 0;
+        totalClicks += parseInt(account.insights.clicks) || 0;
+        totalSpend += parseFloat(account.insights.spend) || 0;
+      }
+      if (account.conversion_totals) {
+        totalConversions += parseInt(account.conversion_totals.conversions) || 0;
+      }
+    });
+
+    // Calculate averages
+    const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
+    const cpc = totalClicks > 0 ? (totalSpend / totalClicks) : 0;
+    const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions * 1000) : 0;
 
     // Performance metrics chart data - only include if value exists
     const performanceData = [
-      { name: t('dashboard.impressions'), value: overall_totals?.impressions ?? 0 },
-      { name: t('dashboard.clicks'), value: overall_totals?.clicks ?? 0 },
-      { name: t('dashboard.conversions'), value: overall_totals?.conversions ?? 0 },
-      { name: t('dashboard.ctr'), value: (overall_totals?.ctr ?? 0) * 100 }, // Convert to percentage
-      { name: t('dashboard.cpc'), value: overall_totals?.cpc ?? 0 },
-      { name: t('dashboard.cpm'), value: overall_totals?.cpm ?? 0 }
+      { name: t('dashboard.impressions'), value: totalImpressions },
+      { name: t('dashboard.clicks'), value: totalClicks },
+      { name: t('dashboard.conversions'), value: totalConversions },
+      { name: t('dashboard.ctr'), value: ctr },
+      { name: t('dashboard.cpc'), value: cpc },
+      { name: t('dashboard.cpm'), value: cpm }
     ].filter(item => item.value > 0); // Only show metrics with actual data
 
     // Spend by account chart data - only include accounts with data
     const spendData = (ad_accounts ?? [])
-      .filter(account => account.totals?.spend > 0)
+      .filter(account => account.insights?.spend > 0)
       .map(account => ({
-        name: account.name ?? `Account ${account.id}`,
-        value: account.totals.spend
+        name: account.account_name ?? `Account ${account.account_id}`,
+        value: parseFloat(account.insights.spend) || 0
       }))
       .slice(0, 10); // Limit to top 10 accounts
 
     // Account performance chart data - only include accounts with data
     const accountData = (ad_accounts ?? [])
-      .filter(account => account.totals?.impressions > 0)
+      .filter(account => account.insights?.impressions > 0)
       .map(account => ({
-        name: account.name ?? `Account ${account.id}`,
-        value: account.totals.impressions
+        name: account.account_name ?? `Account ${account.account_id}`,
+        value: parseInt(account.insights.impressions) || 0
       }))
       .slice(0, 8); // Limit to top 8 accounts
 
@@ -413,7 +653,8 @@ const Dashboard = () => {
                                 platformConnections.result.meta_connections.length > 0;
     const hasMetaData = metaOverallStats && 
                        metaOverallStats.result && 
-                       metaOverallStats.result.overall_totals;
+                       metaOverallStats.result.ad_accounts &&
+                       metaOverallStats.result.ad_accounts.length > 0;
     const shouldIncludeMeta = hasMetaConnections && hasMetaData;
 
     // Add Meta data only if Meta connections exist and has actual data
@@ -451,7 +692,8 @@ const Dashboard = () => {
                                 platformConnections.result.meta_connections.length > 0;
     const hasMetaData = metaOverallStats && 
                        metaOverallStats.result && 
-                       metaOverallStats.result.overall_totals;
+                       metaOverallStats.result.ad_accounts &&
+                       metaOverallStats.result.ad_accounts.length > 0;
     const shouldIncludeMeta = hasMetaConnections && hasMetaData;
 
     // Add Meta data only if Meta connections exist and has actual data
@@ -461,7 +703,7 @@ const Dashboard = () => {
         impressions: metaStats.totalImpressions ?? 0,
         clicks: metaStats.totalClicks ?? 0,
         spend: metaStats.totalSpend ?? 0,
-        ctr: (metaStats.averageCTR ?? 0) * 100
+        ctr: metaStats.averageCTR ?? 0
       });
     }
 
@@ -484,7 +726,7 @@ const Dashboard = () => {
 
   const platformComparisonData = createPlatformComparisonData();
 
-  if (loading || dashboardLoading.platformConnections) {
+  if (dashboardLoading.platformConnections) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -612,10 +854,10 @@ const Dashboard = () => {
                 <ChartCard
                   title={t('dashboard.platformPerformanceComparison')}
                   subtitle={t('dashboard.platformComparisonSubtitle')}
-                  data={platformComparisonData.map(platform => ({
+                  data={platformComparisonData.length > 0 ? platformComparisonData.map(platform => ({
                     name: platform.name,
                     value: platform.impressions
-                  }))}
+                  })) : []}
                   type="bar"
                   height={300}
                   noDataMessage={t('dashboard.noPlatformComparisonData')}
@@ -625,7 +867,7 @@ const Dashboard = () => {
                 <ChartCard
                   title={t('dashboard.combinedPerformanceMetrics')}
                   subtitle={t('dashboard.combinedMetricsSubtitle')}
-                  data={combinedPerformanceData}
+                  data={combinedPerformanceData.length > 0 ? combinedPerformanceData : []}
                   type="bar"
                   height={300}
                   noDataMessage={t('dashboard.noCombinedMetricsData')}
@@ -634,290 +876,14 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* Meta Advertising Stats */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('dashboard.metaAdvertisingStats')}</h2>
-
-            {metaLoading.overallStats && (
-              <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ltr:ml-3 rtl:mr-3 text-gray-600 dark:text-gray-400">{t('dashboard.loadingMetaStats')}</span>
-              </div>
-            )}
-
-            {metaErrors.overallStats && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center rtl:flex-row-reverse">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 ltr:mr-2 rtl:ml-2" />
-                  <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingMetaStats')}</span>
-                </div>
-                <p className="text-red-600 dark:text-red-300 text-sm mt-1">
-                  {typeof metaErrors.overallStats === 'string' ? metaErrors.overallStats : t('dashboard.failedToFetchMetaData')}
-                </p>
-              </div>
-            )}
-
-            {metaOverallStats && metaOverallStats.result && !metaLoading.overallStats && !metaErrors.overallStats && (
-              <div className="space-y-6">
-                {/* Summary Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {metaStats?.totalAdAccounts ?? 0}
-                    </div>
-                    <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">{t('dashboard.totalAdAccounts')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {metaStats?.activeAdAccounts ?? 0} {t('dashboard.active')}
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: metaOverallStats?.result?.primary_currency || metaOverallStats?.result?.overall_totals?.currency || 'USD',
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      }).format(metaStats?.totalSpend ?? 0)}
-                    </div>
-                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.totalSpend')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatNumber(metaStats?.totalImpressions ?? 0)} {t('dashboard.impressions')}
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {formatNumber(metaStats?.totalClicks ?? 0)}
-                    </div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.totalClicks')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {(metaStats?.averageCTR ?? 0).toFixed(2)}% {t('dashboard.ctr')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Meta Charts Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {/* Performance Metrics Chart */}
-                  <ChartCard
-                    title={t('dashboard.metaPerformanceMetrics')}
-                    subtitle={t('dashboard.keyPerformanceIndicators')}
-                    data={metaChartData.performanceData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noPerformanceData')}
-                  />
-
-                  {/* Spend by Account Chart */}
-                  <ChartCard
-                    title={t('dashboard.spendByAdAccount')}
-                    subtitle={t('dashboard.topAccountsBySpend')}
-                    data={metaChartData.spendData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noSpendData')}
-                  />
-
-                  {/* Account Performance Chart */}
-                  <ChartCard
-                    title={t('dashboard.accountPerformance')}
-                    subtitle={t('dashboard.impressionsByAccount')}
-                    data={metaChartData.accountData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noAccountPerformanceData')}
-                  />
-                </div>
-
-                {/* Ad Accounts List */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.adAccounts')}</h4>
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {(metaStats?.adAccounts ?? []).map((account, index) => (
-                      <div key={account.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-3 min-w-0 flex-1">
-                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${account.account_status === 1 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium text-gray-900 dark:text-white truncate">
-                              {account.name}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                              {account.id} • {account.currency}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0 ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {new Intl.NumberFormat('en-US', {
-                              style: 'currency',
-                              currency: account.currency || 'USD',
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            }).format(account.totals.spend)}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatNumber(account.totals.impressions)} {t('dashboard.impressionsLabel')}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!metaOverallStats && !metaLoading.overallStats && !metaErrors.overallStats && (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <p>{t('dashboard.noMetaDataAvailable')}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Google Advertising Stats */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('dashboard.googleAdvertisingStats')}</h2>
-
-            {/* Google Stats Cards */}
-            {googleOverallStatsLoading && (
-              <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                <span className="ltr:ml-3 rtl:mr-3 text-gray-600 dark:text-gray-400">{t('dashboard.loadingGoogleStats')}</span>
-              </div>
-            )}
-
-            {googleOverallStatsError && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-center rtl:flex-row-reverse">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 ltr:mr-2 rtl:ml-2" />
-                  <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingGoogleStats')}</span>
-                </div>
-                <p className="text-red-600 dark:text-red-300 text-sm mt-1">
-                  {typeof googleOverallStatsError === 'string' ? googleOverallStatsError : t('dashboard.failedToFetchGoogleData')}
-                </p>
-              </div>
-            )}
-
-            {googleOverallStats && googleOverallStats.result && !googleOverallStatsLoading && !googleOverallStatsError && (
-              <div className="space-y-6">
-                {/* Summary Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                      {googleOverallStats.result.summary?.total_accounts || 0}
-                    </div>
-                    <div className="text-sm text-red-600 dark:text-red-400 font-medium">{t('dashboard.totalAdAccounts')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {googleOverallStats.result.summary?.valid_accounts || 0} {t('dashboard.active')}
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      {new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: googleOverallStats.result.summary?.total_cost_currency || googleOverallStats.result.summary?.primary_currency || 'USD',
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      }).format(googleOverallStats.result.summary?.total_cost || 0)}
-                    </div>
-                    <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.totalCost')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatNumber(googleOverallStats.result.summary?.total_impressions || 0)} {t('dashboard.impressions')}
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {formatNumber(googleOverallStats.result.summary?.total_clicks || 0)}
-                    </div>
-                    <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.totalClicks')}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {(googleOverallStats.result.summary?.average_ctr || 0).toFixed(2)}% {t('dashboard.ctr')}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Google Charts Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {/* Performance Metrics Chart */}
-                  <ChartCard
-                    title={t('dashboard.googlePerformanceMetrics')}
-                    subtitle={t('dashboard.keyPerformanceIndicators')}
-                    data={googleChartData.performanceData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noPerformanceData')}
-                  />
-
-                  {/* Spend by Account Chart */}
-                  <ChartCard
-                    title={t('dashboard.spendByAdAccount')}
-                    subtitle={t('dashboard.topAccountsBySpend')}
-                    data={googleChartData.spendData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noSpendData')}
-                  />
-
-                  {/* Account Performance Chart */}
-                  <ChartCard
-                    title={t('dashboard.accountPerformance')}
-                    subtitle={t('dashboard.impressionsByAccount')}
-                    data={googleChartData.accountData}
-                    type="bar"
-                    height={300}
-                    noDataMessage={t('dashboard.noAccountPerformanceData')}
-                  />
-                </div>
-
-                {/* Ad Accounts List */}
-                {googleOverallStats.result.accounts && googleOverallStats.result.accounts.length > 0 && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.adAccounts')}</h4>
-                    <div className="space-y-3 max-h-80 overflow-y-auto">
-                      {googleOverallStats.result.accounts.map((account, index) => (
-                        <div key={account.customer_id || index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center space-x-3 min-w-0 flex-1">
-                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${!account.account_info?.is_test_account && (account.metrics?.impressions > 0 || account.metrics?.clicks > 0) ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-medium text-gray-900 dark:text-white truncate">
-                                {account.account_info?.descriptive_name || t('dashboard.unknownAccount')}
-                              </div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                                {account.customer_id} • {account.account_info?.currency_code || account.metrics?.cost_currency || 'USD'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right flex-shrink-0 ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {new Intl.NumberFormat('en-US', {
-                                style: 'currency',
-                                currency: account.metrics?.cost_currency || account.account_info?.currency_code || 'USD',
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0
-                              }).format(account.metrics?.cost || 0)}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatNumber(account.metrics?.impressions || 0)} {t('dashboard.impressionsLabel')}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!googleOverallStats && !googleOverallStatsLoading && !googleOverallStatsError && (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-                <p>{t('dashboard.noConnections')}</p>
-              </div>
-            )}
-          </div>
-
           {/* Performance Metrics & Platform Status */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Performance Metrics */}
             <div className="lg:col-span-2">
-              <ChartCard title={t('dashboard.performanceMetrics')}>
+              <ChartCard 
+                title={t('dashboard.performanceMetrics')}
+                data={[{ name: 'metrics', value: 1 }]}
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -950,29 +916,534 @@ const Dashboard = () => {
             </div>
 
             {/* Platform Status */}
-            <ChartCard title={t('dashboard.platformStatus')}>
+            <ChartCard 
+              title={t('dashboard.platformStatus')}
+              data={platformBreakdown.length > 0 ? platformBreakdown.map(p => ({ name: p.name, value: p.count })) : []}
+            >
               <div className="space-y-3">
-                {platformBreakdown.map((platform, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {platform.name}
-                      </span>
+                {platformBreakdown.length > 0 ? (
+                  platformBreakdown.map((platform, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {platform.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {platform.active}/{platform.count}
+                        </span>
+                        {platform.error > 0 && (
+                          <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {platform.active}/{platform.count}
-                      </span>
-                      {platform.error > 0 && (
-                        <ExclamationTriangleIcon className="w-4 h-4 text-red-500" />
-                      )}
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <p className="text-sm">{t('common.noDataAvailable')}</p>
                   </div>
-                ))}
+                )}
               </div>
             </ChartCard>
           </div>
+
+          {/* Marketing KPIs Section */}
+          {(combinedTotals.totalSpend > 0 || marketingKPIs.totalRevenue > 0) && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Marketing KPIs</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* ROAS */}
+                {marketingKPIs.roas > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">ROAS</h3>
+                      <ChartBarIcon className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {marketingKPIs.roas.toFixed(2)}x
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Return on Ad Spend</p>
+                  </div>
+                )}
+
+                {/* ROI Percentage */}
+                {marketingKPIs.roiPercentage !== 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">ROI</h3>
+                      <ChartBarIcon className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div className={`text-3xl font-bold ${marketingKPIs.roiPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {marketingKPIs.roiPercentage.toFixed(1)}%
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Return on Investment</p>
+                  </div>
+                )}
+
+                {/* Average Order Value */}
+                {marketingKPIs.averageOrderValue > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">AOV</h3>
+                      <CurrencyDollarIcon className="w-5 h-5 text-purple-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: combinedTotals.currency,
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(marketingKPIs.averageOrderValue)}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Average Order Value</p>
+                  </div>
+                )}
+
+                {/* Total Revenue */}
+                {marketingKPIs.totalRevenue > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Revenue</h3>
+                      <CurrencyDollarIcon className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: combinedTotals.currency,
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(marketingKPIs.totalRevenue)}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Revenue Generated</p>
+                  </div>
+                )}
+
+                {/* Reach */}
+                {marketingKPIs.totalReach > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Reach</h3>
+                      <EyeIcon className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {formatNumber(marketingKPIs.totalReach)}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Avg Frequency: {marketingKPIs.averageFrequency.toFixed(2)}x
+                    </p>
+                  </div>
+                )}
+
+                {/* Engagement Rate */}
+                {marketingKPIs.engagementRate > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Engagement</h3>
+                      <CursorArrowRaysIcon className="w-5 h-5 text-purple-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {marketingKPIs.engagementRate.toFixed(2)}%
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {formatNumber(marketingKPIs.totalEngagements)} total engagements
+                    </p>
+                  </div>
+                )}
+
+                {/* Cost Per Reach */}
+                {marketingKPIs.costPerReach > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">CPR</h3>
+                      <CurrencyDollarIcon className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: combinedTotals.currency,
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 4
+                      }).format(marketingKPIs.costPerReach)}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Cost Per Reach</p>
+                  </div>
+                )}
+
+                {/* Revenue Per Click */}
+                {marketingKPIs.revenuePerClick > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">RPC</h3>
+                      <CurrencyDollarIcon className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: combinedTotals.currency,
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      }).format(marketingKPIs.revenuePerClick)}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Revenue Per Click</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Funnel Metrics */}
+              {(marketingKPIs.totalCarts > 0 || marketingKPIs.totalCheckouts > 0) && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversion Funnel</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {formatNumber(combinedTotals.totalClicks)}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Clicks</div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">100%</div>
+                    </div>
+                    {marketingKPIs.totalCarts > 0 && (
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          {formatNumber(marketingKPIs.totalCarts)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Add to Cart</div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          {marketingKPIs.cartToViewRate.toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    {marketingKPIs.totalCheckouts > 0 && (
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                          {formatNumber(marketingKPIs.totalCheckouts)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Checkouts</div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          {marketingKPIs.checkoutToCartRate.toFixed(1)}%
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {formatNumber(combinedTotals.totalConversions)}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Purchases</div>
+                      {marketingKPIs.totalCheckouts > 0 && (
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          {marketingKPIs.purchaseToCheckoutRate.toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Efficiency Metrics Section */}
+          {combinedTotals.totalSpend > 0 && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Efficiency Metrics</h2>
+              
+              {/* Combined Efficiency Metrics */}
+              {combinedTotals.totalSpend > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <ChartBarIcon className="w-5 h-5 mr-2" />
+                    Overall Efficiency Metrics
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: combinedTotals.currency,
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        }).format(combinedEfficiencyMetrics.costPerConversion)}
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Cost per Conversion</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                        {combinedEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">Conversion Efficiency</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {formatNumber(combinedEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">Impressions per $</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                        {combinedEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">Clicks per $</div>
+                    </div>
+                    <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                        {combinedEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                      </div>
+                      <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1">Efficiency Score</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Platform-Specific Efficiency Metrics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Meta Efficiency Metrics */}
+                {metaEfficiencyMetrics && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CheckCircleIcon className="w-5 h-5 mr-2 text-blue-600" />
+                      Meta Ads Efficiency
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Cost per Conversion</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: metaOverallStats?.result?.ad_accounts?.[0]?.currency || 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          }).format(metaEfficiencyMetrics.costPerConversion)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Conversion Efficiency</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {metaEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Impressions per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatNumber(metaEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Clicks per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {metaEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                        <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Efficiency Score</span>
+                        <span className="font-bold text-blue-700 dark:text-blue-300">
+                          {metaEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Efficiency Metrics */}
+                {googleEfficiencyMetrics && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CheckCircleIcon className="w-5 h-5 mr-2 text-red-600" />
+                      Google Ads Efficiency
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Cost per Conversion</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: googleOverallStats?.result?.summary?.total_cost_currency || googleOverallStats?.result?.summary?.primary_currency || 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          }).format(googleEfficiencyMetrics.costPerConversion)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Conversion Efficiency</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {googleEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Impressions per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatNumber(googleEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Clicks per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {googleEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700">
+                        <span className="text-sm text-red-600 dark:text-red-400 font-medium">Efficiency Score</span>
+                        <span className="font-bold text-red-700 dark:text-red-300">
+                          {googleEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Efficiency Metrics Section */}
+          {(combinedTotals.totalSpend > 0 || metaEfficiencyMetrics || googleEfficiencyMetrics) && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Efficiency Metrics</h2>
+              
+              {/* Combined Efficiency Metrics */}
+              {combinedTotals.totalSpend > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <ChartBarIcon className="w-5 h-5 mr-2" />
+                    Overall Efficiency Metrics
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: combinedTotals.currency,
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        }).format(combinedEfficiencyMetrics.costPerConversion)}
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Cost per Conversion</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                        {combinedEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">Conversion Efficiency</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                        {formatNumber(combinedEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">Impressions per $</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                        {combinedEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">Clicks per $</div>
+                    </div>
+                    <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                        {combinedEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                      </div>
+                      <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1">Efficiency Score</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Platform-Specific Efficiency Metrics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Meta Efficiency Metrics */}
+                {metaEfficiencyMetrics && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CheckCircleIcon className="w-5 h-5 mr-2 text-blue-600" />
+                      Meta Ads Efficiency
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Cost per Conversion</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: metaOverallStats?.result?.ad_accounts?.[0]?.currency || 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          }).format(metaEfficiencyMetrics.costPerConversion)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Conversion Efficiency</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {metaEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Impressions per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatNumber(metaEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Clicks per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {metaEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                        <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Efficiency Score</span>
+                        <span className="font-bold text-blue-700 dark:text-blue-300">
+                          {metaEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Efficiency Metrics */}
+                {googleEfficiencyMetrics && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                      <CheckCircleIcon className="w-5 h-5 mr-2 text-red-600" />
+                      Google Ads Efficiency
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Cost per Conversion</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {new Intl.NumberFormat('en-US', {
+                            style: 'currency',
+                            currency: googleOverallStats?.result?.summary?.total_cost_currency || googleOverallStats?.result?.summary?.primary_currency || 'USD',
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          }).format(googleEfficiencyMetrics.costPerConversion)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Conversion Efficiency</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {googleEfficiencyMetrics.conversionEfficiencyRate.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Impressions per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatNumber(googleEfficiencyMetrics.impressionsPerDollar.toFixed(0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Clicks per $</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {googleEfficiencyMetrics.clicksPerDollar.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700">
+                        <span className="text-sm text-red-600 dark:text-red-400 font-medium">Efficiency Score</span>
+                        <span className="font-bold text-red-700 dark:text-red-300">
+                          {googleEfficiencyMetrics.efficiencyScore.toFixed(0)}/100
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Recent Activity */}
           <ChartCard title={t('dashboard.recentActivity')}>

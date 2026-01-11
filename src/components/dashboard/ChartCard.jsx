@@ -27,7 +27,8 @@ const ChartCard = ({
   colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'],
   noDataMessage,
   gradient = false,
-  multiLine = false
+  multiLine = false,
+  children
 }) => {
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
@@ -298,7 +299,9 @@ const ChartCard = ({
       </div>
       
       <div className="w-full">
-        {!data || data.length === 0 ? (
+        {children ? (
+          children
+        ) : !data || data.length === 0 ? (
           <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
             <div className="text-center">
               <div className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600">
