@@ -1,25 +1,36 @@
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  Squares2X2Icon, 
+import {
+  Squares2X2Icon,
   ListBulletIcon,
   ArchiveBoxIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import IntegrationCard from './IntegrationCard';
+import CustomerSelectionDialog from './CustomerSelectionDialog';
+import MetaAdAccountSelectionDialog from './MetaAdAccountSelectionDialog';
 import { useIntegrations } from '../../hooks/useIntegrations';
+import { useSubscription } from '../../hooks/useSubscription';
 import { redirectToPlatformAuth, OAuthManager } from '../../utils/oauth-manager';
+import { fetchCurrentSubscription } from '../../store/slices/subscriptionSlice';
+import { apiService } from '../../services/api';
+import { showSuccessToast, showErrorToast } from '../../hooks/useToast';
 import { fetchGoogleOAuthProfile, extractOAuthParams, validateOAuthParams } from '../../utils/google-oauth-handler';
 import { connectGoogleAccount, refreshGoogleTokens } from '../../store/slices/googleSlice';
 import { fetchFacebookOAuthProfile, extractFacebookOAuthParams, validateFacebookOAuthParams } from '../../utils/facebook-oauth-handler';
-import { connectMetaAccount, refreshMetaTokens } from '../../store/slices/facebookSlice';
+import { connectMetaAccount, refreshMetaTokens, disconnectAndDeleteMetaAccount } from '../../store/slices/facebookSlice';
+import { disconnectAndDeleteGoogleAccount } from '../../store/slices/googleSlice';
+import { updateIntegration } from '../../store/slices/integrationsSlice';
+import { showSubscriptionDialog } from '../../store/slices/subscriptionSlice';
 // TikTok and Shopify integrations removed - currently targeting only Google and Meta
 import { useDispatch } from 'react-redux';
+import { useAppSelector } from '../../store/hooks';
 import SA360CampaignAssetsTest from './SA360CampaignAssetsTest';
 
 
@@ -41,10 +52,14 @@ const IntegrationsPage = () => {
     toggleFiltersVisibility,
     updateViewMode,
     hideBanner,
-    editIntegration,
     removeIntegration,
     loadIntegrations
   } = useIntegrations();
+
+  // Get subscription status from Redux
+  const { hasSubscription, plan, planType, subscription } = useSubscription();
+
+  console.log('IntegrationsPage subscription:', subscription);
 
   // Local state for connection loading
   const [connectingPlatforms, setConnectingPlatforms] = useState(new Set());
@@ -55,14 +70,265 @@ const IntegrationsPage = () => {
   const [success, setSuccess] = useState(null);
   const [navigating, setNavigating] = useState(false);
   
+  // Customer selection modal state
+  const [showCustomerSelection, setShowCustomerSelection] = useState(false);
+  const [availableCustomers, setAvailableCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  
+  // Meta ad account selection modal state
+  const [showMetaAdAccountSelection, setShowMetaAdAccountSelection] = useState(false);
+  const [availableMetaAdAccounts, setAvailableMetaAdAccounts] = useState([]);
+  const [loadingMetaAdAccounts, setLoadingMetaAdAccounts] = useState(false);
 
+  // Platform connections state
+  const [platformConnections, setPlatformConnections] = useState(null);
+  const [loadingConnections, setLoadingConnections] = useState(false);
+  
+  // Refs to prevent duplicate API calls
+  const hasFetchedCustomersRef = useRef(false);
+  const hasFetchedMetaAccountsRef = useRef(false);
+  const hasInitializedRef = useRef(false);
   
   const dispatch = useDispatch();
 
-  // Load integrations when component mounts
+  // Fetch available customers for selection
+  const fetchAvailableCustomers = useCallback(async () => {
+    if (hasFetchedCustomersRef.current || loadingCustomers) {
+      console.log('Skipping duplicate customers fetch');
+      return;
+    }
+    
+    console.log('Fetching available customers...');
+    hasFetchedCustomersRef.current = true;
+    setLoadingCustomers(true);
+    try {
+      const response = await apiService.marketing.getCustomers();
+      console.log('Customers API response:', response);
+      if (response.data.error === false && response.data.result) {
+        const customers = response.data.result.customers || [];
+        console.log('Setting customers:', customers);
+        setAvailableCustomers(customers);
+      } else {
+        console.log('API returned error or no data:', response.data);
+        hasFetchedCustomersRef.current = false; // Allow retry on error
+      }
+    } catch (error) {
+      console.error('Failed to fetch available customers:', error);
+      hasFetchedCustomersRef.current = false; // Allow retry on error
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }, [loadingCustomers]);
+
+  // Fetch available Meta ad accounts for selection
+  const fetchAvailableMetaAdAccounts = useCallback(async () => {
+    if (hasFetchedMetaAccountsRef.current || loadingMetaAdAccounts) {
+      console.log('Skipping duplicate Meta ad accounts fetch');
+      return;
+    }
+    
+    console.log('Fetching Meta ad accounts...');
+    hasFetchedMetaAccountsRef.current = true;
+    setLoadingMetaAdAccounts(true);
+    try {
+      const response = await apiService.marketing.getAdAccountsList();
+      console.log('Meta ad accounts API response:', response);
+      if (response.data.error === false && response.data.result) {
+        const adAccounts = response.data.result.ad_accounts || [];
+        console.log('Setting Meta ad accounts:', adAccounts);
+        setAvailableMetaAdAccounts(adAccounts);
+      } else {
+        console.log('API returned error or no data:', response.data);
+        hasFetchedMetaAccountsRef.current = false; // Allow retry on error
+      }
+    } catch (error) {
+      console.error('Failed to fetch Meta ad accounts:', error);
+      hasFetchedMetaAccountsRef.current = false; // Allow retry on error
+    } finally {
+      setLoadingMetaAdAccounts(false);
+    }
+  }, [loadingMetaAdAccounts]);
+
+  // Handle customer selection (legacy - for single customer)
+  const handleCustomerSelect = async (customerId) => {
+    try {
+      setLoadingCustomers(true);
+      await apiService.marketing.selectGoogleCustomer(customerId);
+
+      // Refresh subscription data to reflect the selection
+      await dispatch(fetchCurrentSubscription());
+
+      showSuccessToast('Customer selected successfully!');
+      setShowCustomerSelection(false);
+    } catch (error) {
+      console.error('Failed to select customer:', error);
+      showErrorToast('Failed to select customer. Please try again.');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  // Handle bulk selection (customers and campaigns) for Google
+  const handleBulkSelect = async (data) => {
+    try {
+      setLoadingCustomers(true);
+      const response = await apiService.marketing.bulkSelectGoogleEntities(data);
+
+      if (response.data.error === false) {
+        // Refresh subscription data to reflect the selection
+        await dispatch(fetchCurrentSubscription());
+        
+        // Refresh platform connections
+        await fetchPlatformConnections();
+
+        // Use the API response message or create a detailed message
+        const result = response.data.result;
+        let successMessage = response.data.message || 'Selection completed successfully!';
+        
+        if (result?.summary) {
+          const summary = result.summary;
+          const customerCount = summary.customers?.selected || 0;
+          const campaignCount = summary.campaigns?.selected || 0;
+          
+          if (customerCount > 0 && campaignCount > 0) {
+            successMessage = `${customerCount} customer(s) and ${campaignCount} campaign(s) selected successfully!`;
+          } else if (customerCount > 0) {
+            successMessage = `${customerCount} customer(s) selected successfully!`;
+          }
+        }
+
+        showSuccessToast(successMessage);
+        setShowCustomerSelection(false);
+      } else {
+        throw new Error(response.data.message || 'Failed to select customers and campaigns');
+      }
+    } catch (error) {
+      console.error('Failed to select customers and campaigns:', error);
+      showErrorToast(error.response?.data?.message || 'Failed to select customers and campaigns. Please try again.');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  // Handle Meta ad account selection (bulk select)
+  const handleMetaAdAccountSelect = async (data) => {
+    try {
+      setLoadingMetaAdAccounts(true);
+      const response = await apiService.marketing.bulkSelectMetaEntities(data);
+
+      if (response.data.error === false) {
+        // Refresh subscription data to reflect the selection
+        await dispatch(fetchCurrentSubscription());
+        
+        // Refresh platform connections
+        await fetchPlatformConnections();
+
+        // Use the API response message or create a detailed message
+        const result = response.data.result;
+        let successMessage = response.data.message || 'Selection completed successfully!';
+        
+        if (result?.summary) {
+          const summary = result.summary;
+          const accountCount = summary.ad_accounts?.selected || 0;
+          const campaignCount = summary.campaigns?.selected || 0;
+          
+          if (accountCount > 0 && campaignCount > 0) {
+            successMessage = `${accountCount} ad account(s) and ${campaignCount} campaign(s) selected successfully!`;
+          } else if (accountCount > 0) {
+            successMessage = `${accountCount} ad account(s) selected successfully!`;
+          }
+        }
+
+        showSuccessToast(successMessage);
+        setShowMetaAdAccountSelection(false);
+      } else {
+        throw new Error(response.data.message || 'Failed to select ad accounts and campaigns');
+      }
+    } catch (error) {
+      console.error('Failed to select Meta ad accounts and campaigns:', error);
+      showErrorToast(error.response?.data?.message || 'Failed to select ad accounts and campaigns. Please try again.');
+    } finally {
+      setLoadingMetaAdAccounts(false);
+    }
+  };
+
+  // Fetch platform connections
+  const fetchPlatformConnections = useCallback(async () => {
+    if (loadingConnections) {
+      console.log('Skipping duplicate platform connections fetch');
+      return;
+    }
+    
+    setLoadingConnections(true);
+    try {
+      const response = await apiService.marketing.platformConnections();
+      if (response.data.error === false && response.data.result) {
+        setPlatformConnections(response.data.result);
+      }
+    } catch (error) {
+      console.error('Failed to fetch platform connections:', error);
+    } finally {
+      setLoadingConnections(false);
+    }
+  }, [loadingConnections]);
+
+  // Load integrations and ensure subscription data is available
   useEffect(() => {
+    if (hasInitializedRef.current) {
+      console.log('Skipping duplicate initialization');
+      return;
+    }
+    
+    hasInitializedRef.current = true;
+    console.log('Initializing IntegrationsPage - loading data');
     loadIntegrations();
+    fetchPlatformConnections();
+
+    // Ensure subscription data is loaded
+    if (!subscription) {
+      console.log('Subscription not available, fetching...');
+      dispatch(fetchCurrentSubscription());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Check if customer/ad account selection modal should be shown
+  useEffect(() => {
+    // Skip if subscription is not loaded yet
+    if (!subscription) {
+      return;
+    }
+
+    console.log('Selection modal check:', {
+      subscription,
+      hasGoogleAccount: subscription?.has_google_account,
+      googleHasSelected: subscription?.google_customer_status?.has_selected,
+      hasMetaAccount: subscription?.has_meta_account,
+      metaHasSelected: subscription?.meta_ad_account_status?.has_selected
+    });
+
+    // Check for Google - show modal
+    if (subscription.has_google_account && !subscription.google_customer_status?.has_selected) {
+      console.log('Showing Google customer selection modal');
+      fetchAvailableCustomers();
+      setShowCustomerSelection(true);
+      setShowMetaAdAccountSelection(false); // Close Meta modal if open
+      return;
+    }
+    
+    // Check for Meta - show modal
+    if (subscription.has_meta_account && !subscription.meta_ad_account_status?.has_selected) {
+      console.log('Showing Meta ad account selection modal');
+      fetchAvailableMetaAdAccounts();
+      setShowMetaAdAccountSelection(true);
+      setShowCustomerSelection(false); // Close Google modal if open
+      return;
+    }
+    
+    console.log('Hiding selection modals - accounts already selected');
+    setShowCustomerSelection(false);
+    setShowMetaAdAccountSelection(false);
+  }, [subscription, fetchAvailableCustomers, fetchAvailableMetaAdAccounts]);
 
   // Handle OAuth callback on component mount
   useEffect(() => {
@@ -130,6 +396,12 @@ const IntegrationsPage = () => {
       // Refresh integrations to show the new connection
       loadIntegrations();
       
+      // Navigate to account selection page
+      const integration = integrations.find(integ =>
+        integ.integrations.some(platform => platform.type === 'google')
+      );
+      navigate(`/integrations/select-accounts?platform=google&integrationId=${integration?.id}`);
+
     } catch (error) {
       console.error('Error processing Google OAuth callback:', error);
       setOauthError(error.message || 'Failed to process Google OAuth callback');
@@ -159,6 +431,12 @@ const IntegrationsPage = () => {
       // Refresh integrations to show the new connection
       loadIntegrations();
       
+      // Navigate to account selection page
+      const integration = integrations.find(integ =>
+        integ.integrations.some(platform => platform.type === 'meta')
+      );
+      navigate(`/integrations/select-accounts?platform=meta&integrationId=${integration?.id}`);
+
     } catch (error) {
       console.error('Error processing Facebook OAuth callback:', error);
       setOauthError(error.message || 'Failed to process Facebook OAuth callback');
@@ -222,7 +500,8 @@ const IntegrationsPage = () => {
           });
         }
         
-        // Don't redirect to dashboard - stay on current page
+        // Navigate to account selection page
+        navigate(`/integrations/select-accounts?platform=google&integrationId=${integration?.id}`);
         return;
       }
       
@@ -345,6 +624,16 @@ const IntegrationsPage = () => {
     }
   };
 
+  const handleEmptyStateConnect = () => {
+    // Show subscription dialog when user tries to connect with no integrations
+    dispatch(showSubscriptionDialog());
+  };
+
+  const handleSubscribe = () => {
+    // Navigate to pricing page when user needs to subscribe
+    navigate('/pricing');
+  };
+
 
 
   const handleRefreshTokens = async (integration) => {
@@ -377,12 +666,15 @@ const IntegrationsPage = () => {
           return;
       }
       
-      // Update the integration status
-      await editIntegration(integration.id, {
-        ...integration,
-        status: 'active',
-        updatedDate: new Date().toLocaleDateString('en-GB')
-      });
+      // Update the integration status using Redux
+      await dispatch(updateIntegration({
+        id: integration.id,
+        data: {
+          ...integration,
+          status: 'active',
+          updatedDate: new Date().toLocaleDateString('en-GB')
+        }
+      })).unwrap();
       
       // Show success message
       setSuccess(`${platformType.charAt(0).toUpperCase() + platformType.slice(1)} tokens refreshed successfully!`);
@@ -398,11 +690,14 @@ const IntegrationsPage = () => {
       // Check if the error is about no refresh token available
       if (error.message && error.message.includes('No refresh token available')) {
         // Update the integration status to inactive so it shows connect button
-        await editIntegration(integration.id, {
-          ...integration,
-          status: 'inactive',
-          updatedDate: new Date().toLocaleDateString('en-GB')
-        });
+        await dispatch(updateIntegration({
+          id: integration.id,
+          data: {
+            ...integration,
+            status: 'inactive',
+            updatedDate: new Date().toLocaleDateString('en-GB')
+          }
+        })).unwrap();
         
         setOauthError('No refresh token available. Please reconnect your account.');
       } else {
@@ -419,26 +714,51 @@ const IntegrationsPage = () => {
 
   const handleDisconnect = async (integration) => {
     const platformType = integration.integrations[0]?.type || 'google';
-    
+    const connectionId = integration.platformData?.accountId || integration.id;
+
     try {
       setDisconnectingPlatforms(prev => new Set(prev).add(platformType));
-      
-      // Here you would typically:
-      // 1. Revoke OAuth tokens
-      // 2. Clear stored credentials
-      // 3. Update the integration status
-      
-      // Simulate disconnection process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await editIntegration(integration.id, {
-        ...integration,
-        status: 'inactive',
-        updatedDate: new Date().toLocaleDateString('en-GB')
-      });
-      
+      setOauthError(null);
+
+      let result;
+
+      if (platformType === 'google') {
+        // Use Redux thunk for Google disconnect and delete
+        result = await dispatch(disconnectAndDeleteGoogleAccount(connectionId)).unwrap();
+      } else if (platformType === 'meta') {
+        // Use Redux thunk for Meta disconnect and delete
+        result = await dispatch(disconnectAndDeleteMetaAccount(connectionId)).unwrap();
+      }
+
+      if (result.success) {
+        console.log(`Successfully disconnected ${platformType} account. Deleted ${result.data.deleted_counts.total_records} records`);
+
+        // Update the integration status to inactive using Redux
+        await dispatch(updateIntegration({
+          id: integration.id,
+          data: {
+            ...integration,
+            status: 'inactive',
+            updatedDate: new Date().toLocaleDateString('en-GB'),
+            userData: null // Clear user data since account is disconnected
+          }
+        })).unwrap();
+
+        // Show success message
+        setSuccess(`${platformType.charAt(0).toUpperCase() + platformType.slice(1)} account disconnected successfully!`);
+
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setSuccess(null);
+        }, 5000);
+
+      } else {
+        throw new Error(result.message || 'Failed to disconnect account');
+      }
+
     } catch (error) {
       console.error('Error disconnecting:', error);
+      setOauthError(error.message || 'Failed to disconnect account');
     } finally {
       setDisconnectingPlatforms(prev => {
         const newSet = new Set(prev);
@@ -767,7 +1087,6 @@ const IntegrationsPage = () => {
         )}
       </div>
 
-
       {/* Integrations Grid */}
       <div className={`grid gap-6 ${
         viewMode === 'grid' 
@@ -781,12 +1100,22 @@ const IntegrationsPage = () => {
           const isConnecting = connectingPlatforms.has(platformType);
           const isDisconnecting = disconnectingPlatforms.has(platformType);
           
+          // Get Google account data if this is a Google integration
+          const googleAccounts = platformType === 'google' && platformConnections?.google_accounts ? platformConnections.google_accounts : null;
+          
+          // Get Meta connections data if this is a Meta integration
+          const metaConnections = platformType === 'meta' && platformConnections?.meta_connections ? platformConnections.meta_connections : null;
+          
+          console.log('IntegrationsPage - Integration:', integration.id, 'platformType:', platformType, 'googleAccounts:', googleAccounts, 'metaConnections:', metaConnections, 'platformConnections:', platformConnections);
+          
           return (
             <IntegrationCard
               key={integration.id}
               {...integration}
               userData={integration.userData}
               platformData={integration.platformData}
+              googleAccounts={googleAccounts}
+              metaConnections={metaConnections}
               onView={() => handleView(integration.id)}
               onEdit={() => handleEdit(integration.id)}
               onDuplicate={() => handleDuplicate(integration.id)}
@@ -794,6 +1123,8 @@ const IntegrationsPage = () => {
               onConnect={() => handleConnect(integration)}
               onDisconnect={() => handleDisconnect(integration)}
               onRefreshTokens={() => handleRefreshTokens(integration)}
+              onSubscribe={handleSubscribe}
+              hasSubscription={hasSubscription}
               isConnecting={isConnecting}
               isDisconnecting={isDisconnecting}
               isNavigating={navigating}
@@ -818,11 +1149,35 @@ const IntegrationsPage = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             {filters.search ? t('common.search') : t('integrations.connectFirst')}
           </p>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium">
-            {t('integrations.connectIntegration')}
+          <button
+            onClick={!hasSubscription ? handleSubscribe : handleEmptyStateConnect}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+          >
+            {!hasSubscription ? t('integrations.subscribe') : t('integrations.connectIntegration')}
           </button>
         </motion.div>
       )}
+
+      {/* Customer Selection Dialog (Google) */}
+      <CustomerSelectionDialog
+        isOpen={showCustomerSelection}
+        onClose={() => setShowCustomerSelection(false)}
+        availableCustomers={availableCustomers}
+        loadingCustomers={loadingCustomers}
+        onCustomerSelect={handleCustomerSelect}
+        onSubmit={handleBulkSelect}
+        onRetry={fetchAvailableCustomers}
+      />
+
+      {/* Meta Ad Account Selection Dialog */}
+      <MetaAdAccountSelectionDialog
+        isOpen={showMetaAdAccountSelection}
+        onClose={() => setShowMetaAdAccountSelection(false)}
+        availableAdAccounts={availableMetaAdAccounts}
+        loadingAdAccounts={loadingMetaAdAccounts}
+        onSubmit={handleMetaAdAccountSelect}
+        onRetry={fetchAvailableMetaAdAccounts}
+      />
     </div>
   );
 };

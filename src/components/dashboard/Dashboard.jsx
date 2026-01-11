@@ -641,14 +641,14 @@ const Dashboard = () => {
             {metaLoading.overallStats && (
               <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600 dark:text-gray-400 rtl:mr-3 rtl:ml-0">{t('dashboard.loadingMetaStats')}</span>
+                <span className="ltr:ml-3 rtl:mr-3 text-gray-600 dark:text-gray-400">{t('dashboard.loadingMetaStats')}</span>
               </div>
             )}
 
             {metaErrors.overallStats && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <div className="flex items-center rtl:flex-row-reverse">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2 rtl:mr-0 rtl:ml-2" />
+                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 ltr:mr-2 rtl:ml-2" />
                   <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingMetaStats')}</span>
                 </div>
                 <p className="text-red-600 dark:text-red-300 text-sm mt-1">
@@ -663,11 +663,11 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {metaStats.totalAdAccounts}
+                      {metaStats?.totalAdAccounts ?? 0}
                     </div>
                     <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">{t('dashboard.totalAdAccounts')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {metaStats.activeAdAccounts} {t('dashboard.active')}
+                      {metaStats?.activeAdAccounts ?? 0} {t('dashboard.active')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -677,20 +677,20 @@ const Dashboard = () => {
                         currency: metaOverallStats?.result?.primary_currency || metaOverallStats?.result?.overall_totals?.currency || 'USD',
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 0
-                      }).format(metaStats.totalSpend)}
+                      }).format(metaStats?.totalSpend ?? 0)}
                     </div>
                     <div className="text-sm text-green-600 dark:text-green-400 font-medium">{t('dashboard.totalSpend')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatNumber(metaStats.totalImpressions)} {t('dashboard.impressions')}
+                      {formatNumber(metaStats?.totalImpressions ?? 0)} {t('dashboard.impressions')}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {formatNumber(metaStats.totalClicks)}
+                      {formatNumber(metaStats?.totalClicks ?? 0)}
                     </div>
                     <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">{t('dashboard.totalClicks')}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {metaStats.averageCTR.toFixed(2)}% {t('dashboard.ctr')}
+                      {(metaStats?.averageCTR ?? 0).toFixed(2)}% {t('dashboard.ctr')}
                     </div>
                   </div>
                 </div>
@@ -732,7 +732,7 @@ const Dashboard = () => {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.adAccounts')}</h4>
                   <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {metaStats.adAccounts.map((account, index) => (
+                    {(metaStats?.adAccounts ?? []).map((account, index) => (
                       <div key={account.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         <div className="flex items-center space-x-3 min-w-0 flex-1">
                           <div className={`w-3 h-3 rounded-full flex-shrink-0 ${account.account_status === 1 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
@@ -780,14 +780,14 @@ const Dashboard = () => {
             {googleOverallStatsLoading && (
               <div className="flex items-center justify-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                <span className="ml-3 text-gray-600 dark:text-gray-400 rtl:mr-3 rtl:ml-0">{t('dashboard.loadingGoogleStats')}</span>
+                <span className="ltr:ml-3 rtl:mr-3 text-gray-600 dark:text-gray-400">{t('dashboard.loadingGoogleStats')}</span>
               </div>
             )}
 
             {googleOverallStatsError && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <div className="flex items-center rtl:flex-row-reverse">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2 rtl:mr-0 rtl:ml-2" />
+                  <ExclamationTriangleIcon className="w-5 h-5 text-red-500 ltr:mr-2 rtl:ml-2" />
                   <span className="text-red-700 dark:text-red-400 font-medium">{t('dashboard.errorLoadingGoogleStats')}</span>
                 </div>
                 <p className="text-red-600 dark:text-red-300 text-sm mt-1">
@@ -998,7 +998,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-4 rtl:ml-0 rtl:mr-4 rtl:text-left">
+                  <div className="ltr:text-right rtl:text-left flex-shrink-0 ltr:ml-4 rtl:mr-4">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
                       {integration.integrations.length} {t('dashboard.platforms')}
                     </div>

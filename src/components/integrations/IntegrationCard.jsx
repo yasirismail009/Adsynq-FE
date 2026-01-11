@@ -14,33 +14,41 @@ import {
   ChartBarIcon,
   CurrencyDollarIcon,
   EyeIcon as ViewIcon,
-  CursorArrowRaysIcon
+  CursorArrowRaysIcon,
+  BuildingOfficeIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { redirectToGoogleAuth } from '../../utils/google-oauth-handler';
+import { usePlanType } from '../../hooks/useSubscription';
 
-const IntegrationCard = ({ 
+const IntegrationCard = ({
   id,
-  title, 
-  domain, 
-  integrations = [], 
-  metrics = {}, 
+  title,
+  domain,
+  integrations = [],
+  metrics = {},
   status = 'active',
   paymentStatus = 'paid',
   createdDate,
   updatedDate,
   userData = null,
   platformData = null,
+  googleAccounts = null,
+  metaConnections = null,
   onView,
   onEdit,
   onDuplicate,
   onDelete,
   onConnect,
   onDisconnect,
+  onSubscribe,
+  hasSubscription,
   isConnecting = false,
   isDisconnecting = false,
   isNavigating = false
 }) => {
   const { t } = useTranslation();
+  const { isFree } = usePlanType();
   const platformConfig = {
     google: { 
       name: t('integrations.googleAds'), 
@@ -64,8 +72,10 @@ const IntegrationCard = ({
   const primaryPlatform = integrations.find(p => p.status === 'active') || integrations[0];
   const platform = platformConfig[primaryPlatform?.type] || platformConfig.google;
   
-  // Handle different connection statuses
-  const isConnected = status === 'active';
+  // Determine connection status: connected if status is 'active' OR if platform connections exist
+  const hasPlatformConnections = (primaryPlatform?.type === 'google' && googleAccounts && googleAccounts.length > 0) ||
+                                  (primaryPlatform?.type === 'meta' && metaConnections && metaConnections.length > 0);
+  const isConnected = status === 'active' || hasPlatformConnections;
   const isInactive = status === 'inactive';
   
   // Get status display info
@@ -123,6 +133,9 @@ const IntegrationCard = ({
   };
 
   const platformMetrics = getPlatformMetrics();
+
+  // Debug: Log googleAccounts and metaConnections data
+  console.log('IntegrationCard - googleAccounts:', googleAccounts, 'metaConnections:', metaConnections, 'platformType:', primaryPlatform?.type);
 
   // Handle connect button click for different platforms (currently only Google and Meta supported)
   const handleConnect = () => {
@@ -262,6 +275,338 @@ const IntegrationCard = ({
         )}
       </div>
 
+      {/* Google Accounts Display */}
+      {googleAccounts && googleAccounts.length > 0 && (
+        <div className="mb-6 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+            {t('integrations.googleAccounts', 'Google Accounts')}
+          </h3>
+          {googleAccounts.map((account) => {
+            const selectedCustomers = account.selected_customers?.filter(c => c.is_selected) || [];
+            const nonSelectedCustomers = account.selected_customers?.filter(c => !c.is_selected) || [];
+            const hasAnyCustomers = selectedCustomers.length > 0 || nonSelectedCustomers.length > 0;
+            
+            return (
+              <div key={account.google_account_id} className="space-y-3 mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                {/* Account Header */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center space-x-3">
+                    {account.google_account?.picture && (
+                      <img
+                        src={account.google_account.picture}
+                        alt={account.google_account.name}
+                        className="w-10 h-10 rounded-full"
+                      />
+                    )}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {account.google_account?.name || 'Google Account'}
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {account.google_account?.email}
+                      </p>
+                    </div>
+                  </div>
+                  {hasAnyCustomers && (
+                    <div className="text-right">
+                      <div className="text-xs font-medium text-gray-900 dark:text-white">
+                        {selectedCustomers.length} {t('integrations.customers.selected', 'selected')}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {account.selected_customers?.length || 0} {t('integrations.customers.total', 'total')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Customers */}
+                {selectedCustomers.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                      {t('integrations.customers.selectedCustomers', 'Selected Customers')}
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedCustomers.map((customer) => {
+                        const selectedCampaigns = customer.selected_campaigns || [];
+                        return (
+                          <div
+                            key={customer.id}
+                            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg overflow-hidden"
+                          >
+                            {/* Customer Header */}
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center space-x-3">
+                                <CheckCircleIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                <div>
+                                  <h5 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {customer.descriptive_name || `Customer ${customer.customer_id}`}
+                                  </h5>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    ID: {customer.customer_id} • {customer.currency_code}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {selectedCampaigns.length > 0 && (
+                                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
+                                    {selectedCampaigns.length} {t('common.campaigns', 'Campaigns')}
+                                  </span>
+                                )}
+                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
+                                  {t('integrations.customers.active', 'Active')}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Selected Campaigns */}
+                            {selectedCampaigns.length > 0 && (
+                              <div className="border-t border-green-200 dark:border-green-800 bg-white dark:bg-gray-800/50 px-3 py-2">
+                                <div className="space-y-1.5">
+                                  {selectedCampaigns.map((campaign) => (
+                                    <div
+                                      key={campaign.id || campaign.campaign_id}
+                                      className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-green-100 dark:border-green-900/30"
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        <ChartBarIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-900 dark:text-white">
+                                            {campaign.name || campaign.campaign_name}
+                                          </p>
+                                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            ID: {campaign.campaign_id} • {campaign.status || 'Active'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <CheckCircleIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Non-Selected Customers (Blurred with Premium Icon) */}
+                {nonSelectedCustomers.length > 0 && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {t('integrations.customers.otherCustomers', 'Other Customers')}
+                      </h4>
+                      {isFree && (
+                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
+                          <SparklesIcon className="w-3 h-3" />
+                          <span>{t('integrations.customers.premiumRequired', 'Premium Required')}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 relative">
+                      {nonSelectedCustomers.map((customer) => (
+                        <div
+                          key={customer.id}
+                          className="relative flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                          style={{ 
+                            opacity: 0.5,
+                            filter: 'blur(3px)'
+                          }}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <BuildingOfficeIcon className="w-4 h-4 text-gray-400" />
+                            <div>
+                              <h5 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                {customer.descriptive_name || `Customer ${customer.customer_id}`}
+                              </h5>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                ID: {customer.customer_id} • {customer.currency_code}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                            <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+                              <SparklesIcon className="w-3 h-3" />
+                              <span>{t('integrations.customers.premium', 'Premium')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Meta Connections Display */}
+      {metaConnections && metaConnections.length > 0 && primaryPlatform?.type === 'meta' && (
+        <div className="mb-6 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+            {t('integrations.metaConnections', 'Meta Connections')}
+          </h3>
+          {metaConnections.map((connection) => {
+            const selectedAdAccounts = connection.selected_ad_accounts?.filter(acc => acc.is_selected) || [];
+            const nonSelectedAdAccounts = connection.selected_ad_accounts?.filter(acc => !acc.is_selected) || [];
+            const hasAnyAdAccounts = selectedAdAccounts.length > 0 || nonSelectedAdAccounts.length > 0;
+            
+            return (
+              <div key={connection.connection_id} className="space-y-3 mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                {/* Connection Header */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <BuildingOfficeIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {connection.account_name || 'Meta Account'}
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {connection.account_email}
+                      </p>
+                    </div>
+                  </div>
+                  {hasAnyAdAccounts && (
+                    <div className="text-right">
+                      <div className="text-xs font-medium text-gray-900 dark:text-white">
+                        {selectedAdAccounts.length} {t('integrations.adAccounts.selected', 'selected')}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {connection.selected_ad_accounts?.length || 0} {t('integrations.adAccounts.total', 'total')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Ad Accounts */}
+                {selectedAdAccounts.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                      {t('integrations.adAccounts.selectedAdAccounts', 'Selected Ad Accounts')}
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedAdAccounts.map((adAccount) => {
+                        const selectedCampaigns = adAccount.campaigns?.filter(c => c.is_selected) || [];
+                        return (
+                          <div
+                            key={adAccount.id}
+                            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg overflow-hidden"
+                          >
+                            {/* Ad Account Header */}
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center space-x-3">
+                                <CheckCircleIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                <div>
+                                  <h5 className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {adAccount.ad_account_name || `Account ${adAccount.ad_account_id}`}
+                                  </h5>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    ID: {adAccount.ad_account_id} • {adAccount.currency}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {selectedCampaigns.length > 0 && (
+                                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
+                                    {selectedCampaigns.length} {t('common.campaigns', 'Campaigns')}
+                                  </span>
+                                )}
+                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
+                                  {t('integrations.customers.active', 'Active')}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Selected Campaigns */}
+                            {selectedCampaigns.length > 0 && (
+                              <div className="border-t border-green-200 dark:border-green-800 bg-white dark:bg-gray-800/50 px-3 py-2">
+                                <div className="space-y-1.5">
+                                  {selectedCampaigns.map((campaign) => (
+                                    <div
+                                      key={campaign.id || campaign.campaign_id}
+                                      className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-green-100 dark:border-green-900/30"
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        <ChartBarIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                        <div>
+                                          <p className="text-xs font-medium text-gray-900 dark:text-white">
+                                            {campaign.campaign_name || campaign.name}
+                                          </p>
+                                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            ID: {campaign.campaign_id} • {campaign.status || 'Active'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <CheckCircleIcon className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Non-Selected Ad Accounts (Blurred with Premium Icon) */}
+                {nonSelectedAdAccounts.length > 0 && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {t('integrations.adAccounts.otherAdAccounts', 'Other Ad Accounts')}
+                      </h4>
+                      {isFree && (
+                        <div className="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
+                          <SparklesIcon className="w-3 h-3" />
+                          <span>{t('integrations.customers.premiumRequired', 'Premium Required')}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 relative">
+                      {nonSelectedAdAccounts.map((adAccount) => (
+                        <div
+                          key={adAccount.id}
+                          className="relative flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                          style={{ 
+                            opacity: 0.5,
+                            filter: 'blur(3px)'
+                          }}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <BuildingOfficeIcon className="w-4 h-4 text-gray-400" />
+                            <div>
+                              <h5 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                {adAccount.ad_account_name || `Account ${adAccount.ad_account_id}`}
+                              </h5>
+                              <p className="text-xs text-gray-500 dark:text-gray-500">
+                                ID: {adAccount.ad_account_id} • {adAccount.currency}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                            <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+                              <SparklesIcon className="w-3 h-3" />
+                              <span>{t('integrations.customers.premium', 'Premium')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
         {isConnected ? (
@@ -294,6 +639,14 @@ const IntegrationCard = ({
               <span className="text-sm">{isDisconnecting ? t('integrations.disconnecting') : t('common.disconnect')}</span>
             </button>
           </div>
+        ) : !hasSubscription ? (
+          <button
+            onClick={onSubscribe}
+            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 rtl:flex-row-reverse"
+          >
+            <CurrencyDollarIcon className="w-5 h-5" />
+            <span className="text-sm">{t('integrations.subscribe')}</span>
+          </button>
         ) : (
           <button
             onClick={handleConnect}

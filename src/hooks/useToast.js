@@ -11,7 +11,7 @@ export const useToast = () => {
   const showSuccess = (message, options = {}) => {
     return toast.success(message, {
       duration: 4000,
-      className: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-lg rounded-lg',
+      className: '!bg-green-50 dark:!bg-green-900/20 !border !border-green-200 dark:!border-green-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
       ...options,
     });
   };
@@ -19,7 +19,7 @@ export const useToast = () => {
   const showError = (message, options = {}) => {
     return toast.error(message, {
       duration: 5000,
-      className: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 shadow-lg rounded-lg',
+      className: '!bg-red-50 dark:!bg-red-900/20 !border !border-red-200 dark:!border-red-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
       ...options,
     });
   };
@@ -27,7 +27,7 @@ export const useToast = () => {
   const showWarning = (message, options = {}) => {
     return toast(message, {
       duration: 4000,
-      className: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 shadow-lg rounded-lg',
+      className: '!bg-yellow-50 dark:!bg-yellow-900/20 !border !border-yellow-200 dark:!border-yellow-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
       ...options,
     });
   };
@@ -35,14 +35,14 @@ export const useToast = () => {
   const showInfo = (message, options = {}) => {
     return toast(message, {
       duration: 4000,
-      className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
+      className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
       ...options,
     });
   };
 
   const showLoading = (message, options = {}) => {
     return toast.loading(message, {
-      className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
+      className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
       ...options,
     });
   };
@@ -65,7 +65,7 @@ export const useToast = () => {
         error: messages.error || 'Something went wrong!',
       },
       {
-        className: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg',
+        className: '!bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-700 !shadow-lg !rounded-lg !text-gray-900 dark:!text-white',
       }
     );
   };
@@ -88,7 +88,7 @@ export const useToast = () => {
 export const showSuccessToast = (message, options) => {
   return toast.success(message, {
     duration: 4000,
-    className: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-lg rounded-lg',
+    className: '!bg-green-50 dark:!bg-green-900/20 !border !border-green-200 dark:!border-green-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
     ...options,
   });
 };
@@ -96,7 +96,7 @@ export const showSuccessToast = (message, options) => {
 export const showErrorToast = (message, options) => {
   return toast.error(message, {
     duration: 5000,
-    className: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 shadow-lg rounded-lg',
+    className: '!bg-red-50 dark:!bg-red-900/20 !border !border-red-200 dark:!border-red-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
     ...options,
   });
 };
@@ -104,7 +104,7 @@ export const showErrorToast = (message, options) => {
 export const showWarningToast = (message, options) => {
   return toast(message, {
     duration: 4000,
-    className: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 shadow-lg rounded-lg',
+    className: '!bg-yellow-50 dark:!bg-yellow-900/20 !border !border-yellow-200 dark:!border-yellow-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
     ...options,
   });
 };
@@ -112,14 +112,14 @@ export const showWarningToast = (message, options) => {
 export const showInfoToast = (message, options) => {
   return toast(message, {
     duration: 4000,
-    className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
+    className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
     ...options,
   });
 };
 
 export const showLoadingToast = (message, options) => {
   return toast.loading(message, {
-    className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
+    className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
     ...options,
   });
 };

@@ -165,6 +165,40 @@ const AdAccountDetail = () => {
     dispatch(fetchMetaAccountOverviewGraph({ accountId, dateRange }));
   };
 
+  // Helper function to get date parameters for campaign details
+  const getCampaignDateParams = (campaign) => {
+    const today = new Date();
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(today.getDate() - 14);
+    
+    let dateFrom;
+    
+    // Priority: created_time > updated_time > two weeks old
+    if (campaign.created_time) {
+      // Handle both date strings and Date objects
+      const createdDate = new Date(campaign.created_time);
+      dateFrom = isNaN(createdDate.getTime()) ? twoWeeksAgo : createdDate;
+    } else if (campaign.updated_time) {
+      const updatedDate = new Date(campaign.updated_time);
+      dateFrom = isNaN(updatedDate.getTime()) ? twoWeeksAgo : updatedDate;
+    } else {
+      dateFrom = twoWeeksAgo;
+    }
+    
+    // Format dates as YYYY-MM-DD (extract only the date part, ignore time)
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    return {
+      date_from: formatDate(dateFrom),
+      date_to: formatDate(today)
+    };
+  };
+
   // Handle date range changes
   const handleDateRangeChange = (field, value) => {
     setDateRange(prev => ({
@@ -1337,7 +1371,14 @@ const AdAccountDetail = () => {
                     </td>
                     <td className="py-3 px-4">
                       <button 
-                        onClick={() => navigate(`/meta/campaign/${campaign.id}`)}
+                        onClick={() => {
+                          const dateParams = getCampaignDateParams(campaign);
+                          const queryString = new URLSearchParams({
+                            date_from: dateParams.date_from,
+                            date_to: dateParams.date_to
+                          }).toString();
+                          navigate(`/meta/campaign/${campaign.id}?${queryString}`);
+                        }}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
                       >
                         {t('common.viewDetails')}

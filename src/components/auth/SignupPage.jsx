@@ -2,13 +2,14 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  EyeIcon, 
+import {
+  EyeIcon,
   EyeSlashIcon,
   EnvelopeIcon,
   LockClosedIcon,
   UserIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   CheckIcon,
   PhoneIcon,
   MapPinIcon
@@ -200,7 +201,7 @@ const SignupPage = () => {
                     {t('auth.fullName')} *
                 </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <UserIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                   </div>
                   <input
@@ -238,7 +239,7 @@ const SignupPage = () => {
                     {t('auth.username')} *
                 </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <UserIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                   </div>
                   <input
@@ -270,7 +271,7 @@ const SignupPage = () => {
                     {t('auth.email')} *
               </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <EnvelopeIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                 </div>
                 <input
@@ -302,7 +303,7 @@ const SignupPage = () => {
                     {t('auth.phoneNumber')} *
                   </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <PhoneIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     </div>
                     <input
@@ -377,7 +378,7 @@ const SignupPage = () => {
                     {t('auth.password')} *
                   </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <LockClosedIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                 </div>
                 <input
@@ -397,7 +398,7 @@ const SignupPage = () => {
                 />
                 <button
                   type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center rtl:right-auto rtl:left-0 rtl:pr-0 rtl:pl-4"
+                      className="absolute inset-y-0 ltr:right-0 ltr:pr-4 rtl:left-0 rtl:pl-4 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -441,7 +442,7 @@ const SignupPage = () => {
                     {t('auth.confirmPassword')} *
               </label>
                   <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                    <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                       <LockClosedIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                 </div>
                 <input
@@ -461,7 +462,7 @@ const SignupPage = () => {
                 />
                 <button
                   type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center rtl:right-auto rtl:left-0 rtl:pr-0 rtl:pl-4"
+                      className="absolute inset-y-0 ltr:right-0 ltr:pr-4 rtl:left-0 rtl:pl-4 flex items-center"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
                   {showConfirmPassword ? (
@@ -528,7 +529,11 @@ const SignupPage = () => {
                 ) : (
                   <>
                     {t('auth.createAccountButton')}
-                    <ArrowRightIcon className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform rtl:ml-0 rtl:mr-2 rtl:group-hover:-translate-x-1" />
+                    {document.documentElement.dir === 'rtl' ? (
+                      <ArrowLeftIcon className="mr-2 h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+                    ) : (
+                      <ArrowRightIcon className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    )}
                   </>
                 )}
               </button>

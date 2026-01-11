@@ -67,6 +67,20 @@ export const disconnectGoogleAccount = createAsyncThunk(
   }
 );
 
+// Async thunk for disconnecting and deleting Google account
+export const disconnectAndDeleteGoogleAccount = createAsyncThunk(
+  'google/disconnectAndDeleteAccount',
+  async (connectionId, { rejectWithValue }) => {
+    try {
+      const response = await apiService.marketing.googleDisconnectAndDelete(connectionId);
+      return response.data;
+    } catch (error) {
+      console.error('Disconnect and delete Google account error:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to disconnect and delete Google account');
+    }
+  }
+);
+
 // Async thunk for refreshing Google tokens
 export const refreshGoogleTokens = createAsyncThunk(
   'google/refreshTokens',
@@ -619,6 +633,30 @@ const googleSlice = createSlice({
         }
       })
       .addCase(disconnectGoogleAccount.rejected, (state, action) => {
+        state.disconnecting = false;
+        state.disconnectError = action.payload;
+        state.disconnectSuccess = false;
+      });
+
+    // Disconnect and delete Google account
+    builder
+      .addCase(disconnectAndDeleteGoogleAccount.pending, (state) => {
+        state.disconnecting = true;
+        state.disconnectError = null;
+        state.disconnectSuccess = false;
+      })
+      .addCase(disconnectAndDeleteGoogleAccount.fulfilled, (state, action) => {
+        state.disconnecting = false;
+        state.disconnectSuccess = true;
+        // Remove the disconnected and deleted account
+        state.connectedAccounts = state.connectedAccounts.filter(
+          account => account.id !== action.payload.account_id
+        );
+        if (state.currentAccount?.id === action.payload.account_id) {
+          state.currentAccount = null;
+        }
+      })
+      .addCase(disconnectAndDeleteGoogleAccount.rejected, (state, action) => {
         state.disconnecting = false;
         state.disconnectError = action.payload;
         state.disconnectSuccess = false;

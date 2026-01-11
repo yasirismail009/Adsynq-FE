@@ -40,6 +40,20 @@ export const disconnectMetaAccount = createAsyncThunk(
   }
 );
 
+// Async thunk for disconnecting and deleting Meta account
+export const disconnectAndDeleteMetaAccount = createAsyncThunk(
+  'facebook/disconnectAndDeleteAccount',
+  async (connectionId, { rejectWithValue }) => {
+    try {
+      const response = await apiService.marketing.metaDisconnectAndDelete(connectionId);
+      return response.data;
+    } catch (error) {
+      console.error('Disconnect and delete Meta account error:', error);
+      return rejectWithValue(error.response?.data?.message || 'Failed to disconnect and delete Meta account');
+    }
+  }
+);
+
 // Async thunk for refreshing Facebook/Meta tokens
 export const refreshMetaTokens = createAsyncThunk(
   'facebook/refreshTokens',
@@ -227,6 +241,30 @@ const facebookSlice = createSlice({
         }
       })
       .addCase(disconnectMetaAccount.rejected, (state, action) => {
+        state.disconnecting = false;
+        state.disconnectError = action.payload;
+        state.disconnectSuccess = false;
+      });
+
+    // Disconnect and delete Facebook account
+    builder
+      .addCase(disconnectAndDeleteMetaAccount.pending, (state) => {
+        state.disconnecting = true;
+        state.disconnectError = null;
+        state.disconnectSuccess = false;
+      })
+      .addCase(disconnectAndDeleteMetaAccount.fulfilled, (state, action) => {
+        state.disconnecting = false;
+        state.disconnectSuccess = true;
+        // Remove the disconnected and deleted account
+        state.connectedAccounts = state.connectedAccounts.filter(
+          account => account.id !== action.payload.account_id
+        );
+        if (state.currentAccount?.id === action.payload.account_id) {
+          state.currentAccount = null;
+        }
+      })
+      .addCase(disconnectAndDeleteMetaAccount.rejected, (state, action) => {
         state.disconnecting = false;
         state.disconnectError = action.payload;
         state.disconnectSuccess = false;

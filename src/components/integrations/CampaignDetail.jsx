@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useCampaignData } from '../../hooks/useCampaignData';
 import ChartCard from '../dashboard/ChartCard';
@@ -43,6 +43,41 @@ import {
 
 const CampaignDetail = () => {
   const { campaignId } = useParams();
+  const [searchParams] = useSearchParams();
+  
+  // Extract and normalize date parameters (handle both date and datetime formats)
+  const getDateParam = (paramName) => {
+    const param = searchParams.get(paramName);
+    if (!param) return null;
+    
+    // If it's a datetime string, extract just the date part (YYYY-MM-DD)
+    if (param.includes('T')) {
+      return param.split('T')[0];
+    }
+    
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(param)) {
+      return param;
+    }
+    
+    // Try to parse and format
+    try {
+      const date = new Date(param);
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (e) {
+      console.warn(`Failed to parse date parameter ${paramName}:`, param);
+    }
+    
+    return null;
+  };
+  
+  const date_from = getDateParam('date_from');
+  const date_to = getDateParam('date_to');
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
@@ -64,9 +99,10 @@ const CampaignDetail = () => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
     
+    // Use date params from URL if available, otherwise use defaults
     return {
-      date_from: thirtyDaysAgo.toISOString().split('T')[0],
-      date_to: today.toISOString().split('T')[0]
+      date_from: date_from || thirtyDaysAgo.toISOString().split('T')[0],
+      date_to: date_to || today.toISOString().split('T')[0]
     };
   });
   

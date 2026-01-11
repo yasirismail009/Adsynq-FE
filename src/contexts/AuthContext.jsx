@@ -23,6 +23,7 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [subscription, setSubscription] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -73,12 +74,13 @@ export const AuthProvider = ({ children }) => {
       
       // Handle the actual API response structure
       if (response.data.error === false && response.data.result) {
-        const { access, refresh, user: userData } = response.data.result;
-        
+        const { access, refresh, user: userData, subscription: subscriptionData } = response.data.result;
+
         setAccessToken(access);
         setRefreshToken(refresh);
-        
+
         setUser(userData);
+        setSubscription(subscriptionData);
         setIsAuthenticated(true);
         
         toast.dismiss(loadingToast);
@@ -137,11 +139,12 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     const loadingToast = showLoadingToast('Signing out...');
-    
+
     try {
       await apiService.auth.logout();
       clearTokens();
       setUser(null);
+      setSubscription(null);
       setIsAuthenticated(false);
       
       toast.dismiss(loadingToast);
@@ -187,6 +190,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    subscription,
     isAuthenticated,
     loading,
     login,

@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { apiService } from '../../services/api';
 import { setAccessToken, setRefreshToken, clearTokens } from '../../utils/auth';
+import { createSubscription, fetchCurrentSubscription } from './subscriptionSlice';
 
 // Rate limiting utility
 const rateLimiter = {
@@ -92,24 +93,25 @@ export const loginUser = createAsyncThunk(
       const response = await apiService.auth.login(credentials);
       
       if (response.data.error === false && response.data.result) {
-        const { access, refresh, user } = response.data.result;
-        
+        const { access, refresh, user, subscription } = response.data.result;
+
         // Validate token structure
         if (!access || !refresh || !user) {
           return rejectWithValue('Invalid response from server');
         }
-        
+
         // Store tokens securely
         setAccessToken(access);
         setRefreshToken(refresh);
-        
+
         // Clear rate limiting for successful login
         rateLimiter.attempts.delete(rateLimitKey);
-        
+
         return {
           user,
           token: access,
-          refreshToken: refresh
+          refreshToken: refresh,
+          subscription
         };
       } else {
         return rejectWithValue(response.data.message || 'Login failed');
@@ -269,6 +271,7 @@ const initialState = {
   user: null,
   token: null,
   refreshToken: null,
+  subscription: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
@@ -305,6 +308,7 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.refreshToken = null;
+      state.subscription = null;
       state.isAuthenticated = false;
       state.lastActivity = null;
       state.error = null;
@@ -339,6 +343,7 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.refreshToken = action.payload.refreshToken;
+        state.subscription = action.payload.subscription;
         state.lastActivity = new Date().toISOString();
         state.error = null;
         state.loginAttempts = 0;
@@ -382,6 +387,7 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.refreshToken = null;
+        state.subscription = null;
         state.lastActivity = null;
         state.error = null;
         state.loginAttempts = 0;
@@ -395,6 +401,7 @@ const authSlice = createSlice({
         state.user = null;
         state.token = null;
         state.refreshToken = null;
+        state.subscription = null;
         state.loginAttempts = 0;
         state.lastLoginAttempt = null;
       });
@@ -437,6 +444,17 @@ const authSlice = createSlice({
       .addCase(fetchUserProfile.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      });
+
+    // Subscription creation - sync with auth state
+    builder
+      .addCase(createSubscription.fulfilled, (state, action) => {
+        // Update subscription in auth state when subscription is created
+        state.subscription = action.payload;
+      })
+      .addCase(fetchCurrentSubscription.fulfilled, (state, action) => {
+        // Update subscription in auth state when current subscription is fetched
+        state.subscription = action.payload;
       });
   },
 });

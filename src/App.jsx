@@ -11,13 +11,16 @@ import GoogleAccountDetail from './components/integrations/GoogleAccountDetail';
 import SA360CampaignDetail from './components/integrations/SA360CampaignDetail';
 import FacebookDashboard from './components/integrations/FacebookDashboard';
 import AdAccountDetail from './components/integrations/AdAccountDetail';
+import AdAccountSelection from './components/integrations/AdAccountSelection';
 import CampaignDetail from './components/integrations/CampaignDetail';
 import PlaceholderPage from './components/pages/PlaceholderPage';
+import PricingPage from './components/pages/PricingPage';
 import LoginPage from './components/auth/LoginPage';
 import SignupPage from './components/auth/SignupPage';
 import Toast from './components/ui/Toast';
 import ThemeProvider from './components/ui/ThemeProvider';
 import ThemeToggle from './components/ui/ThemeToggle';
+import SubscriptionDialog from './components/ui/SubscriptionDialog';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAppSelector } from './store/hooks';
 import { setToken, setUser, initializeAuth, authInitialized } from './store/slices/authSlice';
@@ -162,9 +165,19 @@ function App() {
                 <Layout><ComparisonDashboard /></Layout>
               </ProtectedRoute>
             } />
+            <Route path="/pricing" element={
+              <ProtectedRoute>
+                <Layout><PricingPage /></Layout>
+              </ProtectedRoute>
+            } />
             <Route path="/integrations" element={
               <ProtectedRoute>
                 <Layout><IntegrationsPage /></Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/integrations/select-accounts" element={
+              <ProtectedRoute>
+                <AdAccountSelection />
               </ProtectedRoute>
             } />
             <Route path="/platform/:platformId" element={
@@ -234,6 +247,7 @@ function App() {
           </Routes>
         </Router>
         <Toast />
+        <SubscriptionDialog />
         {/* Floating theme toggle */}
         <div className="fixed bottom-6 right-6 z-50 rtl:right-auto rtl:left-6">
           <ThemeToggle />

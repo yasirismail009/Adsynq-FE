@@ -15,6 +15,7 @@ import facebookSlice from './slices/facebookSlice';
 import tiktokSlice from './slices/tiktokSlice';
 import shopifySlice from './slices/shopifySlice';
 import metaSlice from './slices/metaSlice';
+import subscriptionSlice from './slices/subscriptionSlice';
 
 // Persist configuration
 const persistConfig = {
@@ -25,9 +26,9 @@ const persistConfig = {
   // Persist all store data for better user experience
   // This ensures users don't lose their data on page refresh
   whitelist: [
-    'auth', 
-    'ui', 
-    'theme', 
+    'auth',
+    'ui',
+    'theme',
     'integrations',
     'dashboard',
     'notifications',
@@ -35,7 +36,8 @@ const persistConfig = {
     'facebook',
     'tiktok',
     'shopify',
-    'meta'
+    'meta',
+    'subscription'
   ],
   // Optional: Add transforms for data compression or filtering
   transforms: []
@@ -54,6 +56,7 @@ const rootReducer = combineReducers({
   tiktok: tiktokSlice,
   shopify: shopifySlice,
   meta: metaSlice,
+  subscription: subscriptionSlice,
 });
 
 // Create persisted reducer

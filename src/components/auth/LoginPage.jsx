@@ -2,16 +2,19 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  EyeIcon, 
+import {
+  EyeIcon,
   EyeSlashIcon,
   EnvelopeIcon,
   LockClosedIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import ThemeToggle from '../ui/ThemeToggle';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { loginUser } from '../../store/slices/authSlice';
+import { fetchCurrentSubscription } from '../../store/slices/subscriptionSlice';
+import { useSubscription } from '../../hooks/useSubscription';
 import { showErrorToast } from '../../hooks/useToast';
 import { isValidEmail } from '../../utils/validation';
 
@@ -27,7 +30,8 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { isLoading, error } = useAppSelector((state) => state.auth);
+  const { hasSubscription } = useSubscription();
+  const { error, isLoading } = useAppSelector((state) => state.auth);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -81,9 +85,36 @@ const LoginPage = () => {
     
     try {
       const result = await dispatch(loginUser({ email: formData.email, password: formData.password })).unwrap();
-      
+
       if (result) {
-        navigate('/dashboard');
+        // Fetch current subscription data to get detailed status
+        try {
+          const subscriptionData = await dispatch(fetchCurrentSubscription()).unwrap();
+
+          // Determine navigation based on subscription and connection status
+          if (!subscriptionData || subscriptionData.status !== 'active') {
+            // No active subscription - go to pricing
+            navigate('/pricing');
+          } else {
+            // Has active subscription - check connection status
+            const hasGoogleConnected = subscriptionData.has_google_account;
+            const hasMetaConnected = subscriptionData.has_meta_account;
+            const hasGoogleSelected = subscriptionData.google_customer_status?.has_selected;
+            const hasMetaSelected = subscriptionData.meta_ad_account_status?.has_selected;
+
+            // If any account is connected but not selected, go to integrations
+            if ((hasGoogleConnected && !hasGoogleSelected) || (hasMetaConnected && !hasMetaSelected)) {
+              navigate('/integrations');
+            } else {
+              // Everything is set up - go to dashboard
+              navigate('/dashboard');
+            }
+          }
+        } catch (subscriptionError) {
+          console.warn('Failed to fetch subscription data:', subscriptionError);
+          // If we can't fetch subscription, assume no subscription and go to pricing
+          navigate('/pricing');
+        }
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -148,7 +179,7 @@ const LoginPage = () => {
                   {t('auth.email')} *
                 </label>
                 <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                  <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                     <EnvelopeIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                   </div>
                   <input
@@ -180,7 +211,7 @@ const LoginPage = () => {
                   {t('auth.password')} *
                 </label>
                 <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none rtl:left-auto rtl:right-0 rtl:pl-0 rtl:pr-4">
+                  <div className="absolute inset-y-0 ltr:left-0 ltr:pl-4 rtl:right-0 rtl:pr-4 flex items-center pointer-events-none">
                     <LockClosedIcon className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                   </div>
                   <input
@@ -191,7 +222,7 @@ const LoginPage = () => {
                     required
                     value={formData.password}
                     onChange={handleInputChange}
-                    className={`block w-full pl-12 pr-12 py-4 border-2 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 rtl:pl-12 rtl:pr-12 ${
+                    className={`block w-full pl-12 pr-12 py-4 border-2 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 rtl:pr-12 rtl:pl-12 ${
                       errors.password 
                         ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' 
                         : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:border-gray-300 dark:hover:border-gray-500'
@@ -200,7 +231,7 @@ const LoginPage = () => {
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center rtl:right-auto rtl:left-0 rtl:pr-0 rtl:pl-4"
+                    className="absolute inset-y-0 ltr:right-0 ltr:pr-4 rtl:left-0 rtl:pl-4 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -254,7 +285,11 @@ const LoginPage = () => {
                   ) : (
                     <>
                       {t('auth.signIn')}
-                      <ArrowRightIcon className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform rtl:ml-0 rtl:mr-2 rtl:group-hover:-translate-x-1" />
+                      {document.documentElement.dir === 'rtl' ? (
+                        <ArrowLeftIcon className="mr-2 h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+                      ) : (
+                        <ArrowRightIcon className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                      )}
                     </>
                   )}
                 </button>
@@ -278,7 +313,7 @@ const LoginPage = () => {
       </div>
 
       {/* Custom CSS for animations */}
-      <style jsx>{`
+      <style>{`
         @keyframes blob {
           0% {
             transform: translate(0px, 0px) scale(1);

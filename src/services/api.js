@@ -217,6 +217,7 @@ export const apiService = {
     platformConnections: () => axiosPrivate.get('/marketing/platforms/connections/'),
     googleConnect: (data) => axiosPrivate.post('/marketing/google/connect/', data),
     googleDisconnect: (accountId) => axiosPrivate.post(`/marketing/google/disconnect/${accountId}/`),
+    googleDisconnectAndDelete: (connectionId) => axiosPrivate.delete(`/marketing/disconnect-and-delete-google/${connectionId}/`),
     googleRefreshTokens: () => axiosPrivate.post(`/marketing/google/refresh-token/`),
     googleAccountData: (accountId) => axiosPrivate.get(`/marketing/google/account/${accountId}/`),
     googleOverallStats: (params) => axiosPrivate.get('/marketing/google/overall-stats/', { 
@@ -232,9 +233,17 @@ export const apiService = {
     googleSa360Assets: (googleAccountId, customerId, campaignId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaigns/${campaignId}/assets/`, { params }),
     googleSa360CampaignAssets: (googleAccountId, customerId, params) => axiosPrivate.get(`/marketing/sa360/connections/${googleAccountId}/customers/${customerId}/campaign-assets/`, { params }),
     googleCustomers: () => axiosPrivate.get('/marketing/google/customers/'),
+    getCustomers: () => axiosPrivate.get('/marketing/customers-with-campaigns/'),
+    saveCustomerSelection: (data) => axiosPrivate.post('/marketing/customers/select/', data),
+    selectGoogleCustomer: (customerId) => axiosPrivate.post(`/marketing/google/customers/${customerId}/select/`, {}),
+    bulkSelectGoogleEntities: (data) => axiosPrivate.post('/marketing/google/bulk-select/', data),
     metaAdAccounts: () => axiosPrivate.get('/meta/ad-accounts/'),
+    bulkSelectMetaEntities: (data) => axiosPrivate.post('/meta/bulk-select/', data),
+    getAdAccountsList: () => axiosPrivate.get('/meta/ad-accounts-list/'),
+    saveAdAccountSelection: (data) => axiosPrivate.post('/meta/ad-accounts/select/', data),
     metaConnect: (data) => axiosPrivate.post('/meta/connect/', data),
     metaDisconnect: (accountId) => axiosPrivate.post(`/meta/disconnect/${accountId}/`),
+    metaDisconnectAndDelete: (connectionId) => axiosPrivate.delete(`/meta/disconnect-and-delete/${connectionId}/`),
     metaRefreshTokens: (accountId) => axiosPrivate.post(`/meta/refresh-tokens/${accountId}/`),
     metaAccountData: (accountId) => axiosPrivate.get(`/meta/account/${accountId}/`),
     metaAccountOverviewGraph: (accountId, params) => axiosPrivate.get(`/meta/account-overview-graph/${accountId}/`, { params }),
@@ -267,6 +276,25 @@ export const apiService = {
     markAllAsRead: () => axiosPrivate.put('/notifications/read-all/'),
     delete: (notificationId) => axiosPrivate.delete(`/notifications/${notificationId}/`),
     update: (notificationId, data) => axiosPrivate.put(`/notifications/${notificationId}/`, data),
+  },
+
+  // Subscription endpoints
+  subscriptions: {
+    // Plan Management
+    getPlans: () => axiosPrivate.get('/subscriptions/plans/'),
+
+    // User Subscription Management
+    getCurrent: () => axiosPrivate.get('/subscriptions/current/'),
+    getUsage: () => axiosPrivate.get('/subscriptions/usage/'),
+    getHistory: () => axiosPrivate.get('/subscriptions/history/'),
+
+    // Subscription Operations
+    create: (data) => axiosPrivate.post('/subscriptions/subscribe/', data),
+    update: (data) => axiosPrivate.patch('/subscriptions/update/', data),
+    cancel: () => axiosPrivate.post('/subscriptions/cancel/'),
+
+    // Feature Access Control
+    checkFeature: (feature) => axiosPrivate.get(`/subscriptions/check-feature/${feature}/`),
   },
 };
 

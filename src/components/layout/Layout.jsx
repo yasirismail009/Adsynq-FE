@@ -68,6 +68,8 @@ const Layout = ({ children }) => {
         return t('sidebar.integrations');
       case '/analytics':
         return t('sidebar.analytics');
+      case '/pricing':
+        return t('sidebar.pricing');
       case '/customers':
         return 'Customers';
       case '/reports':
@@ -90,6 +92,8 @@ const Layout = ({ children }) => {
         return `${dashboard} > ${t('sidebar.integrations')}`;
       case '/analytics':
         return `${dashboard} > ${t('sidebar.analytics')}`;
+      case '/pricing':
+        return `${dashboard} > ${t('sidebar.pricing')}`;
       case '/customers':
         return `${dashboard} > Customers`;
       case '/reports':
@@ -167,7 +171,7 @@ const Layout = ({ children }) => {
                 animate={{ x: 0 }}
                 exit={{ x: -280 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed left-0 top-0 h-full z-50 lg:hidden rtl:left-auto rtl:right-0"
+                className="fixed ltr:left-0 rtl:right-0 top-0 h-full z-50 lg:hidden"
               >
                 <Sidebar 
                   isCollapsed={false} 
@@ -210,7 +214,7 @@ const Layout = ({ children }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="p-6"
+                className={`p-6 ${(location.pathname === '/dashboard' || location.pathname === '/comparison') ? 'text-sm' : ''}`}
               >
                 {children}
               </motion.div>

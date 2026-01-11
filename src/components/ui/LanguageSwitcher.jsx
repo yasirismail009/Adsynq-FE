@@ -43,7 +43,7 @@ const LanguageSwitcher = () => {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="absolute top-full mt-2 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-20 min-w-[150px] rtl:right-auto rtl:left-0"
+              className="absolute top-full mt-2 ltr:right-0 rtl:left-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-20 min-w-[150px]"
             >
               {languages.map((lang) => (
                 <button
@@ -58,7 +58,7 @@ const LanguageSwitcher = () => {
                   <span>{lang.flag}</span>
                   <span>{lang.name}</span>
                   {i18n.language === lang.code && (
-                    <span className="ml-auto text-blue-600 dark:text-blue-400 rtl:ml-0 rtl:mr-auto">✓</span>
+                    <span className="ltr:ml-auto rtl:mr-auto text-blue-600 dark:text-blue-400">✓</span>
                   )}
                 </button>
               ))}

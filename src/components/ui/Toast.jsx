@@ -15,37 +15,40 @@ const Toast = () => {
       toastOptions={{
         // Default options for all toasts
         duration: 4000,
-        className: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg rounded-lg',
+        className: '!bg-white dark:!bg-gray-800 !border !border-gray-200 dark:!border-gray-700 !shadow-lg !rounded-lg !text-gray-900 dark:!text-white',
         style: {
           padding: '16px',
-          color: 'inherit',
         },
         // Success toast
         success: {
           duration: 4000,
-          className: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-lg rounded-lg',
-          icon: <CheckCircleIcon className="w-5 h-5 text-green-500" />,
+          className: '!bg-green-50 dark:!bg-green-900/20 !border !border-green-200 dark:!border-green-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
+          iconTheme: {
+            primary: '#10b981',
+            secondary: '#fff',
+          },
         },
         // Error toast
         error: {
           duration: 5000,
-          className: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 shadow-lg rounded-lg',
-          icon: <XCircleIcon className="w-5 h-5 text-red-500" />,
+          className: '!bg-red-50 dark:!bg-red-900/20 !border !border-red-200 dark:!border-red-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#fff',
+          },
         },
         // Warning toast
         custom: {
           duration: 4000,
-          className: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 shadow-lg rounded-lg',
-          icon: <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />,
+          className: '!bg-yellow-50 dark:!bg-yellow-900/20 !border !border-yellow-200 dark:!border-yellow-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
         },
         // Loading toast
         loading: {
-          className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
+          className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
         },
         // Info toast (default)
         default: {
-          className: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg rounded-lg',
-          icon: <InformationCircleIcon className="w-5 h-5 text-blue-500" />,
+          className: '!bg-blue-50 dark:!bg-blue-900/20 !border !border-blue-200 dark:!border-blue-800 !shadow-lg !rounded-lg !text-gray-900 dark:!text-gray-100',
         },
       }}
     />

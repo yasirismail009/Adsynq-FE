@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { showSubscriptionDialog } from '../../store/slices/subscriptionSlice';
 import {
   HomeIcon,
   ChartBarIcon,
@@ -17,7 +18,8 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   ClockIcon,
-  ScaleIcon
+  ScaleIcon,
+  CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
 import { fetchPlatformConnections, selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
@@ -30,10 +32,15 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
   const menuItems = [
     { id: 'dashboard', label: t('sidebar.dashboard'), icon: HomeIcon, href: '/dashboard' },
     { id: 'comparison', label: 'ROI', icon: ScaleIcon, href: '/comparison' },
+    { id: 'pricing', label: t('sidebar.pricing'), icon: CurrencyDollarIcon, href: '/pricing' },
     { id: 'integrations', label: t('sidebar.integrations'), icon: ChartBarIcon, href: '/integrations' },
     { id: 'analytics', label: t('sidebar.analytics'), icon: ChartBarIcon, href: '/analytics' },
     { id: 'settings', label: t('sidebar.settings'), icon: CogIcon, href: '/settings' },
   ];
+
+  const handleSubscriptionClick = () => {
+    dispatch(showSubscriptionDialog());
+  };
 
   // Fetch platform connections on mount
   useEffect(() => {
@@ -325,6 +332,28 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
           </div>
         )}
 
+        {/* Subscription Button */}
+        <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+          <AnimatePresence mode="wait">
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="px-3 py-2"
+              >
+                <button
+                  onClick={handleSubscriptionClick}
+                  className="w-full flex items-center space-x-3 px-3 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                >
+                  <CurrencyDollarIcon className="w-5 h-5" />
+                  <span className="font-medium">{t('subscription.managePlan')}</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* No Connections Message */}
         {connectedIntegrations.length === 0 && needsRefreshIntegrations.length === 0 && (
           <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -342,7 +371,7 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
                       {t('sidebar.noConnectedPlatforms')}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-6 rtl:mr-6 rtl:ml-0">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 ltr:ml-6 rtl:mr-6">
                     {t('sidebar.connectPlatforms')}
                   </p>
                 </motion.div>
