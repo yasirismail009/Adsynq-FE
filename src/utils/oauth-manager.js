@@ -129,8 +129,8 @@ export class OAuthManager {
 
 // Helper function to get the correct redirect URI based on environment
 const getRedirectUri = (platform) => {
-  const isDevelopment = import.meta.env.DEV;
-  const isProduction = import.meta.env.PROD;
+  const isDevelopment =import.meta.env.VITE_ENVIRONMENT === 'development';
+  const isProduction = import.meta.env.VITE_ENVIRONMENT === 'production';
   
   // In development, use localhost:3001
   if (isDevelopment) {
@@ -139,7 +139,7 @@ const getRedirectUri = (platform) => {
   
   // In production, use the actual domain
   if (isProduction) {
-    return `http://localhost:3001/integrations`;
+    return `https://be-kampalo.tekreign.com/integrations`;
   }
   
   // Fallback to window.location.origin
