@@ -22,7 +22,8 @@ import {
   selectCurrentSubscription,
   selectSubscriptionLoading,
   showSubscriptionDialog,
-  createSubscription
+  createSubscription,
+  updateSubscription
 } from '../../store/slices/subscriptionSlice';
 
 const PricingPage = () => {
@@ -55,7 +56,7 @@ const PricingPage = () => {
     }
   };
 
-  const getPlanStyling = (planType) => {
+  const getPlanStyling = (planType, isPopular = false) => {
     switch (planType?.toLowerCase()) {
       case 'free':
         return {
@@ -63,7 +64,7 @@ const PricingPage = () => {
           bgColor: 'bg-gray-100 dark:bg-gray-800',
           borderColor: 'border-gray-200 dark:border-gray-700',
           buttonVariant: 'outline',
-          popular: false
+          popular: isPopular
         };
       case 'premium':
         return {
@@ -71,7 +72,7 @@ const PricingPage = () => {
           bgColor: 'bg-blue-50 dark:bg-blue-900/20',
           borderColor: 'border-blue-200 dark:border-blue-800',
           buttonVariant: 'primary',
-          popular: true
+          popular: isPopular
         };
       case 'enterprise':
         return {
@@ -79,7 +80,7 @@ const PricingPage = () => {
           bgColor: 'bg-purple-50 dark:bg-purple-900/20',
           borderColor: 'border-purple-200 dark:border-purple-800',
           buttonVariant: 'outline',
-          popular: false
+          popular: isPopular
         };
       default:
         return {
@@ -87,7 +88,7 @@ const PricingPage = () => {
           bgColor: 'bg-gray-100 dark:bg-gray-800',
           borderColor: 'border-gray-200 dark:border-gray-700',
           buttonVariant: 'outline',
-          popular: false
+          popular: isPopular
         };
     }
   };
@@ -152,20 +153,91 @@ const PricingPage = () => {
     }
   ];
 
+  // Generate features list from API plan data
+  const getPlanFeatures = (plan) => {
+    // If plan already has a features array (from fallback), use it
+    if (Array.isArray(plan.features) && plan.features.length > 0) {
+      return plan.features;
+    }
+
+    // Otherwise, generate features from API data
+    const features = [];
+
+    // Add account limits
+    if (plan.max_ad_accounts !== null && plan.max_ad_accounts !== undefined) {
+      if (plan.max_ad_accounts === 0 || plan.max_ad_accounts === -1) {
+        features.push(`${t('subscription.unlimited')} ${t('subscription.adAccounts')}`);
+      } else {
+        features.push(`${plan.max_ad_accounts} ${t('subscription.adAccounts')}`);
+      }
+    }
+
+    // Add campaign limits
+    if (plan.max_campaigns !== null && plan.max_campaigns !== undefined) {
+      if (plan.max_campaigns === 0 || plan.max_campaigns === -1) {
+        features.push(`${t('subscription.unlimited')} ${t('subscription.campaigns')}`);
+      } else {
+        features.push(`${plan.max_campaigns} ${t('subscription.campaigns')}`);
+      }
+    }
+
+    // Add connection limits
+    if (plan.max_connections !== null && plan.max_connections !== undefined) {
+      if (plan.max_connections === 0 || plan.max_connections === -1) {
+        features.push(`${t('subscription.unlimited')} ${t('subscription.connections') || 'Connections'}`);
+      } else {
+        features.push(`${plan.max_connections} ${t('subscription.connections') || 'Connections'}`);
+      }
+    }
+
+    // Add Google customers limit
+    if (plan.max_google_customers !== null && plan.max_google_customers !== undefined && plan.max_google_customers > 0) {
+      if (plan.max_google_customers === -1) {
+        features.push(`${t('subscription.unlimited')} ${t('subscription.googleCustomers') || 'Google Customers'}`);
+      } else {
+        features.push(`${plan.max_google_customers} ${t('subscription.googleCustomers') || 'Google Customers'}`);
+      }
+    }
+
+    // Add Meta ad accounts limit
+    if (plan.max_meta_ad_accounts !== null && plan.max_meta_ad_accounts !== undefined && plan.max_meta_ad_accounts > 0) {
+      if (plan.max_meta_ad_accounts === -1) {
+        features.push(`${t('subscription.unlimited')} ${t('subscription.metaAdAccounts') || 'Meta Ad Accounts'}`);
+      } else {
+        features.push(`${plan.max_meta_ad_accounts} ${t('subscription.metaAdAccounts') || 'Meta Ad Accounts'}`);
+      }
+    }
+
+    // Add feature flags
+    if (plan.has_google_ads) features.push(t('subscription.features.googleAds'));
+    if (plan.has_meta_ads) features.push(t('subscription.features.metaAds'));
+    if (plan.has_advanced_analytics) features.push(t('subscription.features.advancedAnalytics'));
+    if (plan.has_custom_reports) features.push(t('subscription.features.customReports'));
+    if (plan.has_api_access) features.push(t('subscription.features.apiAccess'));
+    if (plan.has_priority_support) features.push(t('subscription.features.prioritySupport'));
+    if (plan.has_white_label) features.push(t('subscription.features.whiteLabel'));
+    if (plan.has_custom_integrations) features.push(t('subscription.features.customIntegrations'));
+
+    return features;
+  };
+
   // Use API data if available and valid, otherwise use fallback
   const plansToUse = (Array.isArray(plans) && plans.length > 0) ? plans : fallbackPlans;
 
   const pricingTiers = plansToUse.map(plan => {
-    const styling = getPlanStyling(plan.plan_type);
+    const styling = getPlanStyling(plan.plan_type, plan.is_popular);
     const Icon = getPlanIcon(plan.plan_type);
 
     // Check if this plan is the user's current subscription
     const isCurrentPlan = currentPlan?.id === plan.id;
 
+    // Generate features from plan data
+    const planFeatures = getPlanFeatures(plan);
+
     return {
       id: plan.id || plan.name?.toLowerCase(),
       name: plan.name,
-      price: (plan.price_monthly !== null && plan.price_monthly !== undefined) ? `$${plan.price_monthly}` : t('pricing.contactUs'),
+      price: (plan.price_monthly !== null && plan.price_monthly !== undefined) ? `$${parseFloat(plan.price_monthly).toFixed(2)}` : t('pricing.contactUs'),
       description: plan.description || '',
       icon: Icon,
       iconColor: styling.iconColor,
@@ -174,9 +246,9 @@ const PricingPage = () => {
       buttonText: isCurrentPlan ? t('pricing.currentPlan') :
                   (plan.buttonText || ((plan.price_monthly !== null && plan.price_monthly !== undefined) ? t('pricing.getStarted') : t('pricing.contactSales'))),
       buttonVariant: isCurrentPlan ? 'current' : styling.buttonVariant,
-      popular: styling.popular,
+      popular: plan.is_popular || styling.popular,
       isCurrentPlan,
-      features: plan.features || []
+      features: planFeatures
     };
   }) || [];
 
@@ -202,30 +274,58 @@ const PricingPage = () => {
     switch (planType) {
       case 'free':
       case '1': // Handle numeric ID for free plan
-        // For free plan, create subscription directly (no payment needed)
+        // For free plan, create or update subscription directly (no payment needed)
         const freePlanId = typeof tier.id === 'number' ? tier.id : 1; // Use the actual ID or default to 1
-        dispatch(createSubscription({
+        
+        // If user already has a subscription, use update instead of create
+        const subscriptionAction = currentSubscription 
+          ? updateSubscription 
+          : createSubscription;
+        
+        dispatch(subscriptionAction({
           plan_id: freePlanId,
           billing_interval: 'monthly', // Free plan doesn't need billing interval
         })).unwrap()
         .then(() => {
-          // Success - show success message and redirect to integrations
-          showSuccessToast('Free subscription created successfully!');
-          // Optionally redirect to integrations page after successful subscription
-          // navigate('/integrations');
+          // Success - show success message
+          const successMessage = currentSubscription 
+            ? 'Subscription updated successfully!' 
+            : 'Free subscription created successfully!';
+          showSuccessToast(successMessage);
+          // Refresh current subscription
+          dispatch(fetchCurrentSubscription());
         })
         .catch((error) => {
-          // Error - show error message
-          const errorMessage = error?.message || 'Failed to create free subscription';
-          showErrorToast(errorMessage);
-          console.error('Failed to create free subscription:', error);
+          // If create fails with 409 (conflict), try update instead
+          if ((error?.response?.status === 409 || error?.status === 409) && !currentSubscription) {
+            dispatch(updateSubscription({
+              plan_id: freePlanId,
+              billing_interval: 'monthly',
+            })).unwrap()
+            .then(() => {
+              showSuccessToast('Subscription updated successfully!');
+              dispatch(fetchCurrentSubscription());
+            })
+            .catch((updateError) => {
+              const errorMessage = updateError?.message || 'Failed to update subscription';
+              showErrorToast(errorMessage);
+              console.error('Failed to update subscription:', updateError);
+            });
+          } else {
+            // Error - show error message
+            const errorMessage = error?.message || (currentSubscription ? 'Failed to update subscription' : 'Failed to create free subscription');
+            showErrorToast(errorMessage);
+            console.error('Failed to create/update subscription:', error);
+          }
         });
         break;
 
       case 'premium':
       case '2': // Handle numeric ID for premium plan
         // For premium plan, show subscription dialog to select billing interval
-        dispatch(showSubscriptionDialog());
+        // Pass the plan ID so it's pre-selected in the dialog
+        const premiumPlanId = typeof tier.id === 'number' ? tier.id : (plansToUse.find(p => p.plan_type?.toLowerCase() === 'premium')?.id || tier.id);
+        dispatch(showSubscriptionDialog({ planId: premiumPlanId }));
         break;
 
       case 'enterprise':
@@ -235,8 +335,11 @@ const PricingPage = () => {
         break;
 
       default:
-        // Default behavior - show subscription dialog
-        dispatch(showSubscriptionDialog());
+        // Default behavior - show subscription dialog with selected plan
+        // Pass the plan ID so it's pre-selected in the dialog
+        // If user has a current subscription and selects a different plan, it will update
+        const planId = typeof tier.id === 'number' ? tier.id : tier.id;
+        dispatch(showSubscriptionDialog({ planId }));
         break;
     }
   };

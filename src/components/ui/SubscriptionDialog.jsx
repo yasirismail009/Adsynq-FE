@@ -30,6 +30,7 @@ import {
   selectSubscriptionOperationLoading,
   selectSubscriptionOperationError,
   selectShowSubscriptionDialog,
+  selectSelectedPlanId,
   hideSubscriptionDialog,
   clearSubscriptionError
 } from '../../store/slices/subscriptionSlice';
@@ -38,6 +39,7 @@ const SubscriptionDialog = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const show = useSelector(selectShowSubscriptionDialog);
+  const selectedPlanId = useSelector(selectSelectedPlanId);
 
   // Redux state
   const plans = useSelector(selectSubscriptionPlans);
@@ -69,11 +71,20 @@ const SubscriptionDialog = () => {
         console.warn('Subscription endpoints not available:', error);
       }
 
-      setSelectedPlan(null);
       setBillingInterval('monthly');
       setShowCancelConfirm(false);
     }
   }, [show, dispatch]);
+
+  // Pre-select plan when plans are loaded and selectedPlanId is provided
+  useEffect(() => {
+    if (show && plans.length > 0 && selectedPlanId && !selectedPlan) {
+      const planToSelect = plans.find(p => p.id === selectedPlanId || String(p.id) === String(selectedPlanId));
+      if (planToSelect) {
+        setSelectedPlan(planToSelect);
+      }
+    }
+  }, [show, plans, selectedPlanId, selectedPlan]);
 
   // Handle dialog close
   const handleClose = () => {
@@ -91,14 +102,38 @@ const SubscriptionDialog = () => {
     if (!selectedPlan) return;
 
     try {
-      await dispatch(createSubscription({
-        plan_id: selectedPlan.id,
-        billing_interval: billingInterval,
-      })).unwrap();
+      // If user already has a subscription, use update instead of create
+      if (currentSubscription) {
+        await dispatch(updateSubscription({
+          plan_id: selectedPlan.id,
+          billing_interval: billingInterval,
+        })).unwrap();
+      } else {
+        await dispatch(createSubscription({
+          plan_id: selectedPlan.id,
+          billing_interval: billingInterval,
+        })).unwrap();
+      }
 
-      // Success - dialog will close automatically via Redux
+      // Success - refresh current subscription and dialog will close automatically via Redux
+      dispatch(fetchCurrentSubscription());
     } catch (error) {
-      // Error handled by Redux
+      // If create fails with 409 (conflict), try update instead
+      if (error?.response?.status === 409 || error?.status === 409) {
+        try {
+          await dispatch(updateSubscription({
+            plan_id: selectedPlan.id,
+            billing_interval: billingInterval,
+          })).unwrap();
+          dispatch(fetchCurrentSubscription());
+        } catch (updateError) {
+          // Error handled by Redux
+          console.error('Failed to update subscription:', updateError);
+        }
+      } else {
+        // Error handled by Redux
+        console.error('Failed to create subscription:', error);
+      }
     }
   };
 
@@ -112,7 +147,8 @@ const SubscriptionDialog = () => {
         billing_interval: billingInterval,
       })).unwrap();
 
-      // Success - dialog will close automatically via Redux
+      // Success - refresh current subscription and dialog will close automatically via Redux
+      dispatch(fetchCurrentSubscription());
     } catch (error) {
       // Error handled by Redux
     }
@@ -431,7 +467,7 @@ const SubscriptionDialog = () => {
 
               {selectedPlan && (
                 <button
-                  onClick={currentSubscription ? handleUpdateSubscription : handleSubscribe}
+                  onClick={handleSubscribe}
                   disabled={operationLoading || selectedPlan.id === currentSubscription?.plan?.id}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors font-medium disabled:cursor-not-allowed"
                 >

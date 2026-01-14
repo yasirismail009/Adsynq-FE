@@ -7,21 +7,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary Color Palette
+        // Primary Color Palette - Vector-1 Gradient (#684DE7 to #3E2D8E)
         primary: {
-          50: '#F5F4FF',
-          100: '#E8E5FF',
-          200: '#D1CCFF',
-          300: '#B3ABFF',
-          400: '#8B7FE8',
-          500: '#6C5DD3',
-          600: '#5A4BC7',
-          700: '#4A3BB8',
-          800: '#3D2F9A',
-          900: '#2F2477',
-          DEFAULT: '#6C5DD3',
-          light: '#8B7FE8',
-          dark: '#5A4BC7',
+          50: '#F5F3FF',
+          100: '#E8E2FF',
+          200: '#D1C5FF',
+          300: '#B3A0FF',
+          400: '#8B6FEB',
+          500: '#684DE7',
+          600: '#5640C4',
+          700: '#4E3A9F',
+          800: '#3E2D8E',
+          900: '#2F2269',
+          DEFAULT: '#684DE7',
+          light: '#8B6FEB',
+          dark: '#4E3A9F',
         },
         
         // Secondary Color Palette
@@ -232,7 +232,7 @@ export default {
     function({ addUtilities, theme }) {
       const newUtilities = {
         '.text-gradient-primary': {
-          background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%)',
+          background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-800) 100%)',
           '-webkit-background-clip': 'text',
           '-webkit-text-fill-color': 'transparent',
           'background-clip': 'text',

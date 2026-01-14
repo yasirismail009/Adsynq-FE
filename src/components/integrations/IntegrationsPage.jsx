@@ -16,7 +16,7 @@ import IntegrationCard from './IntegrationCard';
 import CustomerSelectionDialog from './CustomerSelectionDialog';
 import MetaAdAccountSelectionDialog from './MetaAdAccountSelectionDialog';
 import { useIntegrations } from '../../hooks/useIntegrations';
-import { useSubscription } from '../../hooks/useSubscription';
+import { useSubscription, usePlanType } from '../../hooks/useSubscription';
 import { redirectToPlatformAuth, OAuthManager } from '../../utils/oauth-manager';
 import { fetchCurrentSubscription } from '../../store/slices/subscriptionSlice';
 import { apiService } from '../../services/api';
@@ -58,6 +58,7 @@ const IntegrationsPage = () => {
 
   // Get subscription status from Redux
   const { hasSubscription, plan, planType, subscription } = useSubscription();
+  const { isFree } = usePlanType();
 
   console.log('IntegrationsPage subscription:', subscription);
 
@@ -172,7 +173,15 @@ const IntegrationsPage = () => {
   const handleBulkSelect = async (data) => {
     try {
       setLoadingCustomers(true);
-      const response = await apiService.marketing.bulkSelectGoogleEntities(data);
+      
+      // If plan is not free, only send customer_ids (ad accounts), not campaign_ids
+      const requestData = { ...data };
+      if (!isFree && requestData.campaign_ids) {
+        // Remove campaigns for non-free plans - only ad accounts/customers allowed
+        delete requestData.campaign_ids;
+      }
+      
+      const response = await apiService.marketing.bulkSelectGoogleEntities(requestData);
 
       if (response.data.error === false) {
         // Refresh subscription data to reflect the selection
@@ -188,7 +197,7 @@ const IntegrationsPage = () => {
         if (result?.summary) {
           const summary = result.summary;
           const customerCount = summary.customers?.selected || 0;
-          const campaignCount = summary.campaigns?.selected || 0;
+          const campaignCount = isFree ? (summary.campaigns?.selected || 0) : 0; // Only show campaigns for free plan
           
           if (customerCount > 0 && campaignCount > 0) {
             successMessage = `${customerCount} customer(s) and ${campaignCount} campaign(s) selected successfully!`;

@@ -149,6 +149,7 @@ const initialState = {
 
   // Dialog state
   showSubscriptionDialog: false,
+  selectedPlanId: null, // Plan ID to pre-select when dialog opens
 };
 
 const subscriptionSlice = createSlice({
@@ -163,11 +164,13 @@ const subscriptionSlice = createSlice({
       state.featureError = null;
       state.operationError = null;
     },
-    showSubscriptionDialog: (state) => {
+    showSubscriptionDialog: (state, action) => {
       state.showSubscriptionDialog = true;
+      state.selectedPlanId = action.payload?.planId || null;
     },
     hideSubscriptionDialog: (state) => {
       state.showSubscriptionDialog = false;
+      state.selectedPlanId = null;
     },
     resetSubscriptionState: (state) => {
       state.currentSubscription = null;
@@ -321,6 +324,7 @@ export const selectSubscriptionOperationLoading = (state) => state.subscription.
 export const selectSubscriptionOperationError = (state) => state.subscription.operationError;
 
 export const selectShowSubscriptionDialog = (state) => state.subscription.showSubscriptionDialog;
+export const selectSelectedPlanId = (state) => state.subscription.selectedPlanId;
 
 // Current plan selectors
 export const selectCurrentPlan = (state) => state.subscription.currentSubscription?.plan;

@@ -20,7 +20,7 @@ const initialState = {
   mode: THEME_MODES.LIGHT,
   colorScheme: COLOR_SCHEMES.PRIMARY,
   customColors: {
-    primary: '#6C5DD3',
+    primary: '#684DE7',
     secondary: '#0074F2',
     accent: '#10B981',
   },

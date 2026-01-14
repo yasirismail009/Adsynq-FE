@@ -3,20 +3,20 @@
 @custom-variant dark (&:where(.dark, .dark *));
 /* Custom CSS Variables for Theme Colors */
 :root {
-  /* Primary Colors */
-  --color-primary: #6C5DD3;
-  --color-primary-light: #8B7FE8;
-  --color-primary-dark: #5A4BC7;
-  --color-primary-50: #F5F4FF;
-  --color-primary-100: #E8E5FF;
-  --color-primary-200: #D1CCFF;
-  --color-primary-300: #B3ABFF;
-  --color-primary-400: #8B7FE8;
-  --color-primary-500: #6C5DD3;
-  --color-primary-600: #5A4BC7;
-  --color-primary-700: #4A3BB8;
-  --color-primary-800: #3D2F9A;
-  --color-primary-900: #2F2477;
+  /* Primary Colors - Vector-1 Gradient (#684DE7 to #3E2D8E) */
+  --color-primary: #684DE7;
+  --color-primary-light: #8B6FEB;
+  --color-primary-dark: #4E3A9F;
+  --color-primary-50: #F5F3FF;
+  --color-primary-100: #E8E2FF;
+  --color-primary-200: #D1C5FF;
+  --color-primary-300: #B3A0FF;
+  --color-primary-400: #8B6FEB;
+  --color-primary-500: #684DE7;
+  --color-primary-600: #5640C4;
+  --color-primary-700: #4E3A9F;
+  --color-primary-800: #3E2D8E;
+  --color-primary-900: #2F2269;
 
   /* Secondary Colors */
   --color-secondary: #0074F2;
@@ -74,7 +74,7 @@
   /* Border Colors */
   --color-border-primary: #E5E7EB;
   --color-border-secondary: #F1F2F4;
-  --color-border-focus: #6C5DD3;
+  --color-border-focus: #684DE7;
 
   /* Shadow Colors */
   --color-shadow-light: rgba(35, 31, 35, 0.05);
@@ -156,7 +156,7 @@
 
 /* High Contrast Theme */
 [data-theme="high-contrast"] {
-  --color-primary: #4A3BB8;
+  --color-primary: #3E2D8E;
   --color-secondary: #0056CC;
   --color-text-primary: #000000;
   --color-text-secondary: #333333;
@@ -232,7 +232,7 @@
 
 /* Gradient Utilities */
 .gradient-primary {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-800) 100%);
 }
 
 .gradient-secondary {

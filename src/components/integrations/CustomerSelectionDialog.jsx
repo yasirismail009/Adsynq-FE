@@ -54,8 +54,16 @@ const CustomerSelectionDialog = ({
       setSelectedCampaigns(newCampaigns);
       setExpandedCustomer(null);
     } else {
-      // Check limit
-      if (newSelected.size >= maxCustomers) {
+      // For free plan: only allow 1 customer at a time
+      if (isFree && newSelected.size >= 1) {
+        // If trying to select a different customer, replace the current one
+        const currentCustomerId = Array.from(newSelected)[0];
+        newSelected.delete(currentCustomerId);
+        // Clear campaigns from the previous customer
+        const newCampaigns = new Map(selectedCampaigns);
+        newCampaigns.delete(currentCustomerId);
+        setSelectedCampaigns(newCampaigns);
+      } else if (!isFree && newSelected.size >= maxCustomers) {
         return; // Cannot select more customers
       }
       newSelected.add(customerId);
@@ -98,6 +106,18 @@ const CustomerSelectionDialog = ({
       return;
     }
 
+    // For free plan: validate that exactly 1 customer and 1 campaign are selected
+    if (isFree) {
+      if (selectedCustomers.size !== 1) {
+        console.warn('Free plan requires exactly 1 customer');
+        return;
+      }
+      if (getTotalSelectedCampaigns() !== 1) {
+        console.warn('Free plan requires exactly 1 campaign');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const customerIds = Array.from(selectedCustomers);
@@ -107,7 +127,9 @@ const CustomerSelectionDialog = ({
       if (customerIds.length > 0) {
         data.customer_ids = customerIds;
       }
-      if (campaignIds.length > 0) {
+      // Only include campaigns for free plan - non-free plans can only select ad accounts/customers
+      // For free plan, ensure exactly 1 campaign is included
+      if (isFree && campaignIds.length === 1) {
         data.campaign_ids = campaignIds;
       }
 
@@ -127,7 +149,11 @@ const CustomerSelectionDialog = ({
   };
 
   // Check if customer can be selected
-  const canSelectCustomer = () => {
+  const canSelectCustomer = (customerId) => {
+    // For free plan: can only select 1 customer, but can switch to a different one
+    if (isFree) {
+      return selectedCustomers.size < 1 || selectedCustomers.has(customerId);
+    }
     return selectedCustomers.size < maxCustomers;
   };
 
@@ -137,7 +163,10 @@ const CustomerSelectionDialog = ({
   };
 
   // Check if submit is enabled
-  const canSubmit = selectedCustomers.size > 0 && (!isFree || getTotalSelectedCampaigns() === 1);
+  // For free plan: must have exactly 1 customer and exactly 1 campaign
+  // For other plans: must have at least 1 customer
+  const canSubmit = selectedCustomers.size > 0 && 
+    (!isFree || (selectedCustomers.size === 1 && getTotalSelectedCampaigns() === 1));
 
   return (
     <Modal
@@ -157,15 +186,21 @@ const CustomerSelectionDialog = ({
             <ChartBarIcon className="w-4 h-4" />
             <span>
               {isFree 
-                ? t('integrations.customerSelection.freeLimit', 'Free Plan: Select 1 customer and 1 campaign')
+                ? t('integrations.customerSelection.freeLimit', 'Free Plan: Select exactly 1 ad account and 1 campaign')
                 : isPremium
-                ? t('integrations.customerSelection.premiumLimit', 'Premium Plan: Select up to 2 customers with all their campaigns')
-                : t('integrations.customerSelection.enterpriseLimit', 'Enterprise Plan: Select unlimited customers and campaigns')
+                ? t('integrations.customerSelection.premiumLimit', 'Premium Plan: Select up to 2 customers (campaigns not available)')
+                : t('integrations.customerSelection.enterpriseLimit', 'Enterprise Plan: Select unlimited customers (campaigns not available)')
               }
             </span>
           </div>
           <div className="mt-2 text-xs text-blue-600 dark:text-blue-500">
-            {t('integrations.customerSelection.selected', 'Selected:')} {selectedCustomers.size} {t('integrations.customers.selected', 'customer(s)')}, {getTotalSelectedCampaigns()} {t('common.campaigns', 'campaign(s)')}
+            {t('integrations.customerSelection.selected', 'Selected:')} {selectedCustomers.size} {t('integrations.customers.selected', 'customer(s)')}
+            {isFree && `, ${getTotalSelectedCampaigns()} ${t('common.campaigns', 'campaign(s)')}`}
+            {!isFree && (
+              <span className="ml-2 text-orange-600 dark:text-orange-400">
+                ({t('integrations.customerSelection.campaignsNotAvailable', 'Campaigns not available for this plan')})
+              </span>
+            )}
           </div>
         </div>
 
@@ -216,9 +251,9 @@ const CustomerSelectionDialog = ({
                     {/* Customer Row */}
                     <div
                       className={`flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                        !canSelectCustomer() && !isSelected ? 'opacity-50 cursor-not-allowed' : ''
+                        !canSelectCustomer(customerId) && !isSelected ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
-                      onClick={() => canSelectCustomer() || isSelected ? handleCustomerToggle(customerId) : null}
+                      onClick={() => canSelectCustomer(customerId) || isSelected ? handleCustomerToggle(customerId) : null}
                     >
                       <div className="flex items-center space-x-3 flex-1">
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
@@ -240,33 +275,36 @@ const CustomerSelectionDialog = ({
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {isSelected && customerCampaigns.size > 0 && (
+                        {isSelected && isFree && customerCampaigns.size > 0 && (
                           <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">
                             {customerCampaigns.size} {t('integrations.customers.selected', 'selected')}
                           </span>
                         )}
+                        {/* Only show expand button for free plan to select campaigns */}
+                        {isFree && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isSelected) {
                               setExpandedCustomer(isExpanded ? null : customerId);
-                            } else if (canSelectCustomer()) {
+                            } else if (canSelectCustomer(customerId)) {
                               handleCustomerToggle(customerId);
                             }
                           }}
                           className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                         >
-                          {isExpanded ? (
-                            <XMarkIcon className="w-5 h-5" />
-                          ) : (
-                            <ChartBarIcon className="w-5 h-5" />
-                          )}
-                        </button>
+                            {isExpanded ? (
+                              <XMarkIcon className="w-5 h-5" />
+                            ) : (
+                              <ChartBarIcon className="w-5 h-5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* Campaigns List (Expanded) */}
-                    {isSelected && isExpanded && campaigns.length > 0 && (
+                    {/* Campaigns List (Expanded) - Only show for free plan */}
+                    {isSelected && isExpanded && campaigns.length > 0 && isFree && (
                       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-2">
                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                           {t('common.campaigns', 'Campaigns')}
@@ -329,11 +367,21 @@ const CustomerSelectionDialog = ({
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {selectedCustomers.size > 0 ? (
               <span>
-                {selectedCustomers.size} {t('integrations.customers.selected', 'customer(s)')} • {getTotalSelectedCampaigns()} {t('common.campaigns', 'campaign(s)')} {t('integrations.customerSelection.selected', 'selected')}
+                {selectedCustomers.size} {t('integrations.customers.selected', 'customer(s)')}
+                {isFree && ` • ${getTotalSelectedCampaigns()} ${t('common.campaigns', 'campaign(s)')}`}
+                {' '}{t('integrations.customerSelection.selected', 'selected')}
+                {isFree && (selectedCustomers.size !== 1 || getTotalSelectedCampaigns() !== 1) && (
+                  <span className="ml-2 text-orange-600 dark:text-orange-400 text-xs">
+                    ({t('integrations.customerSelection.freeRequirement', 'Free plan requires exactly 1 ad account and 1 campaign')})
+                  </span>
+                )}
               </span>
             ) : (
               <span>
-                {t('integrations.customerSelection.selectCustomerFirst', 'Please select at least one customer')}
+                {isFree 
+                  ? t('integrations.customerSelection.freeSelectFirst', 'Please select exactly 1 ad account and 1 campaign')
+                  : t('integrations.customerSelection.selectCustomerFirst', 'Please select at least one customer')
+                }
               </span>
             )}
           </div>

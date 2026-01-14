@@ -26,6 +26,7 @@ import {
   validateUsername,
   validateName
 } from '../../utils/validation';
+import logo from '../../assets/logo.svg';
 
 const SignupPage = () => {
   const { t } = useTranslation();
@@ -161,9 +162,7 @@ const SignupPage = () => {
             transition={{ duration: 0.6 }}
           className="text-center mb-8"
         >
-            <div className="mx-auto h-16 w-16 bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-              <span className="text-white text-2xl font-bold">A</span>
-          </div>
+          <img src={logo} alt="Logo" className="w-16 h-16 mx-auto mb-6" />
             <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-3">
               {t('auth.welcomeToAdSynq')}
             </h1>
