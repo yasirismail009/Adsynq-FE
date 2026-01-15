@@ -11,7 +11,6 @@ import GoogleAccountDetail from './components/integrations/GoogleAccountDetail';
 import SA360CampaignDetail from './components/integrations/SA360CampaignDetail';
 import FacebookDashboard from './components/integrations/FacebookDashboard';
 import AdAccountDetail from './components/integrations/AdAccountDetail';
-import AdAccountSelection from './components/integrations/AdAccountSelection';
 import CampaignDetail from './components/integrations/CampaignDetail';
 import PlaceholderPage from './components/pages/PlaceholderPage';
 import PricingPage from './components/pages/PricingPage';
@@ -173,11 +172,6 @@ function App() {
             <Route path="/integrations" element={
               <ProtectedRoute>
                 <Layout><IntegrationsPage /></Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/integrations/select-accounts" element={
-              <ProtectedRoute>
-                <AdAccountSelection />
               </ProtectedRoute>
             } />
             <Route path="/platform/:platformId" element={

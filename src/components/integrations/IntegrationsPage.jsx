@@ -405,11 +405,10 @@ const IntegrationsPage = () => {
       // Refresh integrations to show the new connection
       loadIntegrations();
       
-      // Navigate to account selection page
-      const integration = integrations.find(integ =>
-        integ.integrations.some(platform => platform.type === 'google')
-      );
-      navigate(`/integrations/select-accounts?platform=google&integrationId=${integration?.id}`);
+      // Open account selection modal (instead of navigating to a separate page)
+      fetchAvailableCustomers();
+      setShowCustomerSelection(true);
+      setShowMetaAdAccountSelection(false);
 
     } catch (error) {
       console.error('Error processing Google OAuth callback:', error);
@@ -440,11 +439,10 @@ const IntegrationsPage = () => {
       // Refresh integrations to show the new connection
       loadIntegrations();
       
-      // Navigate to account selection page
-      const integration = integrations.find(integ =>
-        integ.integrations.some(platform => platform.type === 'meta')
-      );
-      navigate(`/integrations/select-accounts?platform=meta&integrationId=${integration?.id}`);
+      // Open ad account selection modal (instead of navigating to a separate page)
+      fetchAvailableMetaAdAccounts();
+      setShowMetaAdAccountSelection(true);
+      setShowCustomerSelection(false);
 
     } catch (error) {
       console.error('Error processing Facebook OAuth callback:', error);
@@ -509,8 +507,10 @@ const IntegrationsPage = () => {
           });
         }
         
-        // Navigate to account selection page
-        navigate(`/integrations/select-accounts?platform=google&integrationId=${integration?.id}`);
+        // Open account selection modal (instead of navigating to a separate page)
+        fetchAvailableCustomers();
+        setShowCustomerSelection(true);
+        setShowMetaAdAccountSelection(false);
         return;
       }
       
