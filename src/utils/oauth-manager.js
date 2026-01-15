@@ -139,7 +139,7 @@ const getRedirectUri = (platform) => {
   
   // In production, use the actual domain
   if (isProduction) {
-    return `https://be-kampalo.tekreign.com/integrations`;
+    return `https://app.kampalo.com/integrations`;
   }
   
   // Fallback to window.location.origin
