@@ -35,7 +35,7 @@ export const exchangeCodeForFacebookToken = async (code) => {
   try {
     const appId = import.meta.env.VITE_META_APP_ID;
     const appSecret = import.meta.env.VITE_META_APP_SECRET;
-    const redirectUri = `${window.location.origin}/integrations`;
+    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI;
     
     if (!appId || !appSecret) {
       throw new Error('Facebook app configuration missing');
