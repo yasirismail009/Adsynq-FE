@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   ChartBarIcon,
@@ -8,18 +8,21 @@ import {
   CursorArrowRaysIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
-  ChevronDownIcon,
   FunnelIcon,
-  MagnifyingGlassIcon,
   BarsArrowUpIcon,
-  BarsArrowDownIcon,
   UserPlusIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PlusCircleIcon,
+  XMarkIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import ChartCard from './ChartCard';
-import { selectMetaAdAccounts, fetchMetaAdAccounts } from '../../store/slices/metaSlice';
-import { selectGoogleCustomers, fetchGoogleCustomers } from '../../store/slices/googleSlice';
+import { selectMetaAdAccounts, selectMetaAdAccountsLoading, fetchMetaAdAccounts } from '../../store/slices/metaSlice';
+import { selectGoogleCustomers, selectGoogleFetching, fetchGoogleCustomers } from '../../store/slices/googleSlice';
+import { apiService } from '../../services/api';
+
+const DEFAULT_DATE_RANGE = { date_from: '2023-01-01', date_to: new Date().toISOString().split('T')[0] };
 
 const ComparisonDashboard = () => {
   const dispatch = useDispatch();
@@ -27,19 +30,28 @@ const ComparisonDashboard = () => {
   // Redux state
   const metaAdAccounts = useSelector(selectMetaAdAccounts);
   const googleCustomers = useSelector(selectGoogleCustomers);
+  const metaAccountsLoading = useSelector(selectMetaAdAccountsLoading);
+  const googleCustomersLoading = useSelector(selectGoogleFetching);
 
-  // Component state
-  const [selectedMetaAccount, setSelectedMetaAccount] = useState(null);
-  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState(null);
-  const [selectedMetaAccount2, setSelectedMetaAccount2] = useState(null);
-  const [selectedGoogleAccount2, setSelectedGoogleAccount2] = useState(null);
-  const [comparisonMode, setComparisonMode] = useState('meta-vs-google'); // meta-vs-google, meta-vs-meta, google-vs-google
+  // Tab: 'accounts' | 'campaigns'
+  const [activeTab, setActiveTab] = useState('accounts');
 
-  // Fetch data on component mount - only call the two required APIs
+  // Ads Account comparison: unified Meta+Google, cannot select same in both
+  const [selectedAccount1, setSelectedAccount1] = useState(null); // unifiedId e.g. 'meta-123' or 'google-456'
+  const [selectedAccount2, setSelectedAccount2] = useState(null);
+
+  // Campaigns comparison state
+  const [comparisonCampaigns, setComparisonCampaigns] = useState([]); // [{ campaignId, campaignName, accountId, accountName, platform }]
+  const [campaignMetricsMap, setCampaignMetricsMap] = useState({});
+  const [campaignsDataLoading, setCampaignsDataLoading] = useState(false);
+
+  const accountsLoading = metaAccountsLoading || googleCustomersLoading;
+
+  // Fetch data on component mount
   useEffect(() => {
     dispatch(fetchMetaAdAccounts());
     dispatch(fetchGoogleCustomers());
-  }, []); // Empty dependency array to ensure it runs only once on mount
+  }, [dispatch]);
 
   // Available accounts
   const metaAccounts = useMemo(() => {
@@ -48,11 +60,192 @@ const ComparisonDashboard = () => {
   }, [metaAdAccounts]);
 
   const googleAccountsList = useMemo(() => {
-    // Extract customers from the API response structure
     return googleCustomers?.result?.customers || [];
   }, [googleCustomers]);
 
-  // Campaign comparison disabled for now - only account comparison
+  // Google customers with campaigns for Campaigns tab (GET /marketing/customers-with-campaigns/)
+  const [customersWithCampaigns, setCustomersWithCampaigns] = useState(null);
+  const [customersWithCampaignsLoading, setCustomersWithCampaignsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'campaigns') return;
+    let cancelled = false;
+    setCustomersWithCampaignsLoading(true);
+    apiService.marketing
+      .getCustomers()
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.data?.error === false && res?.data?.result) {
+          setCustomersWithCampaigns(res.data.result);
+        } else {
+          setCustomersWithCampaigns({ customers: [] });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCustomersWithCampaigns({ customers: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setCustomersWithCampaignsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeTab]);
+
+  const googleCustomersForCampaigns = useMemo(() => {
+    return customersWithCampaigns?.customers || [];
+  }, [customersWithCampaigns]);
+
+  // Unified list: all Meta + Google ads accounts for Ads Account tab
+  const allAccounts = useMemo(() => {
+    const list = [];
+    (metaAccounts || []).forEach((a) => {
+      list.push({
+        unifiedId: `meta-${a.account_id}`,
+        platform: 'meta',
+        label: a.account_name || a.account_id,
+        raw: a
+      });
+    });
+    (googleAccountsList || []).forEach((c) => {
+      const id = String(c.customer_id ?? c.id ?? '');
+      list.push({
+        unifiedId: `google-${id}`,
+        platform: 'google',
+        label: c.descriptive_name || c.customer_id || id,
+        raw: c
+      });
+    });
+    return list;
+  }, [metaAccounts, googleAccountsList]);
+
+  // All campaigns from Meta + Google for Campaigns tab (Google from customers-with-campaigns API)
+  const allCampaigns = useMemo(() => {
+    const list = [];
+    (metaAccounts || []).forEach((acc) => {
+      const campaigns = acc.campaigns || [];
+      campaigns.forEach((c) => {
+        const id = c.campaign_id || c.id;
+        const name = c.campaign_name || c.name || id;
+        list.push({
+          campaignId: id,
+          campaignName: name,
+          accountId: acc.account_id,
+          accountName: acc.account_name || acc.account_id,
+          platform: 'meta'
+        });
+      });
+    });
+    (googleCustomersForCampaigns || []).forEach((cust) => {
+      const campaigns = cust.campaigns || [];
+      const cid = String(cust.customer_id ?? cust.id ?? '');
+      campaigns.forEach((c) => {
+        const id = c.campaign_id || c.id;
+        const name = c.campaign_name || c.name || id;
+        list.push({
+          campaignId: id,
+          campaignName: name,
+          accountId: cid,
+          accountName: cust.descriptive_name || cust.customer_id || cid,
+          platform: 'google'
+        });
+      });
+    });
+    return list;
+  }, [metaAccounts, googleCustomersForCampaigns]);
+
+  // Helper: extract Meta campaign metrics from campaign-details API response
+  const extractMetaCampaignDataFromApi = useCallback((raw, campaignId, campaignName, accountId, accountName) => {
+    const data = raw?.result || raw;
+    const insights = data?.insights_data || data?.insights || {};
+    const spend = parseFloat(insights.spend || 0) || 0;
+    const impressions = parseInt(insights.impressions || 0) || 0;
+    const clicks = parseInt(insights.clicks || 0) || 0;
+    let conversions = 0;
+    if (insights.results?.[0]?.values?.[0]?.value != null) {
+      conversions = parseInt(insights.results[0].values[0].value, 10) || 0;
+    }
+    const allConversions = insights.actions?.filter(a =>
+      (a.action_type || '').includes('conversion') || (a.action_type || '') === 'purchase'
+    ).reduce((s, a) => s + (parseInt(a.value || 0, 10) || 0), 0) || 0;
+    const engagements = insights.actions?.filter(a =>
+      ['post_engagement', 'page_engagement', 'comment', 'post_reaction'].includes(a.action_type || '')
+    ).reduce((s, a) => s + (parseInt(a.value || 0, 10) || 0), 0) || 0;
+    const interactions = insights.actions?.reduce((s, a) => s + (parseInt(a.value || 0, 10) || 0), 0) || 0;
+    const ctr = parseFloat(insights.ctr || 0) || 0;
+    const cpl = conversions > 0 ? spend / conversions : 0;
+    const cvr = clicks > 0 ? (conversions / clicks) * 100 : 0;
+    const cpc = clicks > 0 ? spend / clicks : 0;
+    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+    const engagementRate = impressions > 0 ? (engagements / impressions) * 100 : 0;
+    const cpe = engagements > 0 ? spend / engagements : 0;
+    return {
+      accountId: accountId || campaignId,
+      accountName: campaignName || campaignId,
+      platform: 'Meta Ads',
+      spend, impressions, clicks,
+      leads: conversions,
+      ctr, roi: null,
+      cpl, cvr, cpc, cpm, engagementRate, cpe,
+      engagements, interactions, allConversions,
+      confidence: { spend: 'high', impressions: 'high', clicks: 'high', leads: 'high', ctr: 'high', roi: null, cpl: 'high', cvr: 'high', cpc: 'high', cpm: 'high', engagementRate: 'high', cpe: 'high' }
+    };
+  }, []);
+
+  // Fetch campaign metrics when comparison campaigns change (Meta only; Google metrics N/A)
+  useEffect(() => {
+    if (activeTab !== 'campaigns' || comparisonCampaigns.length === 0) {
+      setCampaignMetricsMap({});
+      return;
+    }
+    let cancelled = false;
+    setCampaignsDataLoading(true);
+    const fetchAll = async () => {
+      const next = {};
+      for (const c of comparisonCampaigns) {
+        if (cancelled) return;
+        if (c.platform !== 'meta') continue; // only Meta campaign API available
+        try {
+          const res = await apiService.marketing.metaCampaignData(c.campaignId, DEFAULT_DATE_RANGE);
+          const data = extractMetaCampaignDataFromApi(
+            res?.data,
+            c.campaignId,
+            c.campaignName,
+            c.accountId,
+            c.accountName
+          );
+          if (!cancelled) next[c.campaignId] = data;
+        } catch (e) {
+          if (!cancelled) next[c.campaignId] = null;
+        }
+      }
+      if (!cancelled) {
+        setCampaignMetricsMap(next);
+        setCampaignsDataLoading(false);
+      }
+    };
+    fetchAll();
+    return () => { cancelled = true; setCampaignsDataLoading(false); };
+  }, [activeTab, comparisonCampaigns, extractMetaCampaignDataFromApi]);
+
+  const addCampaignToComparison = useCallback((c) => {
+    setComparisonCampaigns(prev => {
+      if (prev.some(x => x.campaignId === c.campaignId)) return prev;
+      return [...prev, c];
+    });
+  }, []);
+
+  const removeCampaignFromComparison = useCallback((campaignId) => {
+    setComparisonCampaigns(prev => prev.filter(x => x.campaignId !== campaignId));
+    setCampaignMetricsMap(prev => {
+      const next = { ...prev };
+      delete next[campaignId];
+      return next;
+    });
+  }, []);
+
+  const clearCampaignsComparison = useCallback(() => {
+    setComparisonCampaigns([]);
+    setCampaignMetricsMap({});
+  }, []);
 
   // Helper function to extract Meta account data
   const extractMetaAccountData = (account) => {
@@ -60,36 +253,24 @@ const ComparisonDashboard = () => {
 
     const insights = account.insights || {};
     const conversionTotals = account.conversion_totals || {};
-
-    console.log('Meta account conversion_totals:', conversionTotals);
-    console.log('Meta account insights:', insights);
-
-    // Use conversion_totals.conversions for leads, as it's the most reliable source
-    let conversions =conversionTotals.conversions;
-
-
-    console.log('Meta conversions from conversion_totals:', conversions);
+    const conversions = conversionTotals?.conversions ?? 0;
 
     const allConversions = insights.actions?.filter(action =>
-      action.action_type.includes('conversion') || action.action_type === 'purchase'
+      action.action_type?.includes('conversion') || action.action_type === 'purchase'
     ).reduce((sum, action) => sum + (parseInt(action.value || 0) || 0), 0) || 0;
 
     const interactions = insights.actions?.reduce((sum, action) =>
       sum + (parseInt(action.value || 0) || 0), 0) || 0;
 
     const engagements = insights.actions?.filter(action =>
-      ['post_engagement', 'page_engagement', 'comment', 'post_reaction'].includes(action.action_type)
+      ['post_engagement', 'page_engagement', 'comment', 'post_reaction'].includes(action.action_type || '')
     ).reduce((sum, action) => sum + (parseInt(action.value || 0) || 0), 0) || 0;
 
     const spend = parseFloat(insights.spend || 0) || 0;
     const impressions = parseInt(insights.impressions || 0) || 0;
     const clicks = parseInt(insights.clicks || 0) || 0;
-
-    // Check if ROI data is available (Meta accounts with conversion tracking)
-    const hasConversionData = account.roi !== undefined && account.roi !== null;
+    const hasConversionData = account.roi != null && account.roi !== undefined;
     const roi = hasConversionData ? parseFloat(account.roi) || 0 : null;
-
-    // Calculate safe lead-gen metrics
     const cpl = conversions > 0 ? spend / conversions : 0;
     const cvr = clicks > 0 ? (conversions / clicks) * 100 : 0;
     const cpc = clicks > 0 ? spend / clicks : 0;
@@ -101,39 +282,16 @@ const ComparisonDashboard = () => {
       accountId: account.account_id,
       accountName: account.account_name || account.account_id,
       platform: 'Meta Ads',
-      // Core metrics
-      spend: spend,
-      impressions: impressions,
-      clicks: clicks,
-      leads: conversions, // Renamed from conversions
-      ctr: parseFloat(insights.ctr) || 0,
-      // ROI (only for Meta accounts with conversion data)
-      roi: roi,
-      // Calculated metrics (HIGH confidence)
-      cpl: cpl,
-      cvr: cvr,
-      cpc: cpc,
-      cpm: cpm,
-      engagementRate: engagementRate,
-      cpe: cpe,
-      // Additional metrics
-      engagements: engagements,
-      interactions: interactions,
-      allConversions: allConversions,
-      // Confidence flags
+      spend, impressions, clicks,
+      leads: conversions,
+      ctr: parseFloat(insights.ctr || 0) || 0,
+      roi,
+      cpl, cvr, cpc, cpm, engagementRate, cpe,
+      engagements, interactions, allConversions,
       confidence: {
-        spend: 'high',
-        impressions: 'high',
-        clicks: 'high',
-        leads: 'high',
-        ctr: 'high',
-        roi: hasConversionData ? 'high' : null, // Only high confidence if conversion data exists
-        cpl: 'high',
-        cvr: 'high',
-        cpc: 'high',
-        cpm: 'high',
-        engagementRate: 'high',
-        cpe: 'high'
+        spend: 'high', impressions: 'high', clicks: 'high', leads: 'high', ctr: 'high',
+        roi: hasConversionData ? 'high' : null, cpl: 'high', cvr: 'high', cpc: 'high', cpm: 'high',
+        engagementRate: 'high', cpe: 'high'
       }
     };
   };
@@ -143,16 +301,10 @@ const ComparisonDashboard = () => {
     if (!account) return null;
 
     const metrics = account.metrics || {};
-
-    console.log('Google account metrics:', metrics);
-    console.log('Conversions value:', metrics.conversions, 'Type:', typeof metrics.conversions);
-
     const spend = parseFloat(metrics.cost || 0) || 0;
     const impressions = parseInt(metrics.impressions || 0) || 0;
     const clicks = parseInt(metrics.clicks || 0) || 0;
     const conversions = parseInt(metrics.conversions || 0) || 0;
-
-    console.log('Final Google conversions value:', conversions);
 
     let conversionValue = 0;
     if (metrics.conversions_value !== undefined && metrics.conversions_value !== null) {
@@ -214,79 +366,46 @@ const ComparisonDashboard = () => {
     };
   };
 
-  // Comparison data
+  // Comparison data (accounts or campaigns)
   const comparisonData = useMemo(() => {
-    console.log('Calculating comparison data for mode:', comparisonMode, {
-      selectedMetaAccount, selectedGoogleAccount, selectedMetaAccount2, selectedGoogleAccount2
-    });
+    const data = { account1: null, account2: null, entities: [], differences: {} };
 
-    const data = {
-      account1: null,
-      account2: null,
-      differences: {}
-    };
-
-    if (comparisonMode === 'meta-vs-google') {
-      // Meta vs Google comparison
-      if (selectedMetaAccount && metaAccounts.length > 0) {
-        const metaAccount = metaAccounts.find(acc => acc.account_id === selectedMetaAccount);
-        data.account1 = extractMetaAccountData(metaAccount);
+    if (activeTab === 'campaigns') {
+      const entities = comparisonCampaigns
+        .map(c => campaignMetricsMap[c.campaignId])
+        .filter(Boolean);
+      data.entities = entities;
+      data.account1 = entities[0] || null;
+      data.account2 = entities[1] || null;
+    } else {
+      const a1 = allAccounts.find((a) => a.unifiedId === selectedAccount1);
+      const a2 = allAccounts.find((a) => a.unifiedId === selectedAccount2);
+      if (a1) {
+        data.account1 = a1.platform === 'meta'
+          ? extractMetaAccountData(a1.raw)
+          : extractGoogleAccountData(a1.raw);
+        if (data.account1) data.account1.accountName = (data.account1.accountName || '') + (a1.platform === 'meta' ? ' (Meta)' : ' (Google)');
       }
-
-      if (selectedGoogleAccount && googleAccountsList.length > 0) {
-        const googleAccount = googleAccountsList.find(acc => String(acc.customer_id) === String(selectedGoogleAccount));
-        data.account2 = extractGoogleAccountData(googleAccount);
+      if (a2) {
+        data.account2 = a2.platform === 'meta'
+          ? extractMetaAccountData(a2.raw)
+          : extractGoogleAccountData(a2.raw);
+        if (data.account2) data.account2.accountName = (data.account2.accountName || '') + (a2.platform === 'meta' ? ' (Meta)' : ' (Google)');
       }
-    } else if (comparisonMode === 'meta-vs-meta') {
-      // Meta vs Meta comparison
-      if (selectedMetaAccount && metaAccounts.length > 0) {
-        const metaAccount1 = metaAccounts.find(acc => acc.account_id === selectedMetaAccount);
-        data.account1 = extractMetaAccountData(metaAccount1);
-        if (data.account1) data.account1.accountName += ' (Account 1)';
-      }
-
-      if (selectedMetaAccount2 && metaAccounts.length > 0) {
-        const metaAccount2 = metaAccounts.find(acc => acc.account_id === selectedMetaAccount2);
-        data.account2 = extractMetaAccountData(metaAccount2);
-        if (data.account2) data.account2.accountName += ' (Account 2)';
-      }
-    } else if (comparisonMode === 'google-vs-google') {
-      // Google vs Google comparison
-      if (selectedGoogleAccount && googleAccountsList.length > 0) {
-        const googleAccount1 = googleAccountsList.find(acc => String(acc.customer_id) === String(selectedGoogleAccount));
-        data.account1 = extractGoogleAccountData(googleAccount1);
-        if (data.account1) data.account1.accountName += ' (Account 1)';
-      }
-
-      if (selectedGoogleAccount2 && googleAccountsList.length > 0) {
-        const googleAccount2 = googleAccountsList.find(acc => String(acc.customer_id) === String(selectedGoogleAccount2));
-        data.account2 = extractGoogleAccountData(googleAccount2);
-        if (data.account2) data.account2.accountName += ' (Account 2)';
-      }
+      data.entities = [data.account1, data.account2].filter(Boolean);
     }
 
-    // Calculate differences
     if (data.account1 && data.account2) {
-      const metrics = ['spend', 'impressions', 'clicks', 'leads', 'ctr', 'roi', 'cpl', 'cvr', 'cpc', 'cpm', 'engagementRate', 'cpe', 'engagements', 'interactions'];
-
+      const metrics = ['spend', 'impressions', 'clicks', 'leads', 'ctr', 'roi', 'cpl', 'cvr', 'cpc', 'cpm', 'engagementRate', 'cpe', 'engagements', 'interactions', 'allConversions'];
       metrics.forEach(metric => {
         const value1 = data.account1[metric];
         const value2 = data.account2[metric];
-
-        // Skip metrics that are null/undefined for both accounts
-        if ((value1 === null || value1 === undefined) && (value2 === null || value2 === undefined)) {
-          return;
-        }
-
-        // Use 0 as default for null values when one account has data and the other doesn't
-        const val1 = value1 !== null && value1 !== undefined ? value1 : 0;
-        const val2 = value2 !== null && value2 !== undefined ? value2 : 0;
-
-        const difference = val1 - val2;
+        if ((value1 == null) && (value2 == null)) return;
+        const val1 = value1 != null ? value1 : 0;
+        const val2 = value2 != null ? value2 : 0;
         const percentDiff = val2 !== 0 ? ((val1 - val2) / val2) * 100 : 0;
-
         data.differences[metric] = {
-          absolute: difference,
+          absolute: val1 - val2,
           percentage: percentDiff,
           better: Math.abs(val1) > Math.abs(val2) ? 'account1' : 'account2'
         };
@@ -295,22 +414,22 @@ const ComparisonDashboard = () => {
 
     return data;
   }, [
-    comparisonMode,
-    selectedMetaAccount,
-    selectedGoogleAccount,
-    selectedMetaAccount2,
-    selectedGoogleAccount2,
-    metaAccounts,
-    googleAccountsList
+    activeTab,
+    selectedAccount1,
+    selectedAccount2,
+    allAccounts,
+    comparisonCampaigns,
+    campaignMetricsMap
   ]);
 
   // Chart data for comparison
   const chartData = useMemo(() => {
-    if (!comparisonData.account1 && !comparisonData.account2) return {};
+    const entities = comparisonData.entities?.length
+      ? comparisonData.entities
+      : [comparisonData.account1, comparisonData.account2].filter(Boolean);
+    if (!entities.length) return {};
 
-    const accounts = [];
-    if (comparisonData.account1) accounts.push({ name: comparisonData.account1.accountName, ...comparisonData.account1 });
-    if (comparisonData.account2) accounts.push({ name: comparisonData.account2.accountName, ...comparisonData.account2 });
+    const accounts = entities.map(e => ({ name: e.accountName, ...e }));
 
     return {
       spendComparison: accounts.map(p => ({
@@ -421,244 +540,183 @@ const ComparisonDashboard = () => {
           </p>
         </div>
 
-        {/* Comparison Mode Selection */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Comparison Type
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                  comparisonMode === 'meta-vs-google'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                }`}
-                onClick={() => setComparisonMode('meta-vs-google')}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">M</span>
-                  </div>
-                  <span className="text-gray-600 dark:text-gray-400">vs</span>
-                  <div className="w-6 h-6 bg-green-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">G</span>
-                  </div>
-                </div>
-                <p className="text-center text-sm font-medium text-gray-900 dark:text-white mt-2">
-                  Meta vs Google
-                </p>
-              </div>
-              <div
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                  comparisonMode === 'meta-vs-meta'
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                }`}
-                onClick={() => setComparisonMode('meta-vs-meta')}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">M</span>
-                  </div>
-                  <span className="text-gray-600 dark:text-gray-400">vs</span>
-                  <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">M</span>
-                  </div>
-                </div>
-                <p className="text-center text-sm font-medium text-gray-900 dark:text-white mt-2">
-                  Meta vs Meta
-                </p>
-              </div>
-              <div
-                className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                  comparisonMode === 'google-vs-google'
-                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                }`}
-                onClick={() => setComparisonMode('google-vs-google')}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-6 h-6 bg-green-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">G</span>
-                  </div>
-                  <span className="text-gray-600 dark:text-gray-400">vs</span>
-                  <div className="w-6 h-6 bg-green-600 rounded flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">G</span>
-                  </div>
-                </div>
-                <p className="text-center text-sm font-medium text-gray-900 dark:text-white mt-2">
-                  Google vs Google
-                </p>
-              </div>
-            </div>
+        {/* Loader when fetching accounts */}
+        {accountsLoading && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 mb-6 flex flex-col items-center justify-center min-h-[200px]">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent mb-4" />
+            <p className="text-gray-600 dark:text-gray-400">Loading Meta &amp; Google accounts…</p>
           </div>
-        </div>
+        )}
 
+        {/* Tabs + Selection */}
+        {!accountsLoading && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab('accounts')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition ${
+                activeTab === 'accounts'
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-b-2 border-blue-600'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              }`}
+            >
+              Ads Account Comparison
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('campaigns')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition ${
+                activeTab === 'campaigns'
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-b-2 border-violet-600'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              }`}
+            >
+              Campaigns Comparison
+            </button>
+          </div>
 
-        {/* Account/Campaign Selection */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <div className={`grid grid-cols-1 ${comparisonMode === 'meta-vs-google' ? 'md:grid-cols-2' : 'md:grid-cols-2'} gap-6`}>
-            {comparisonMode === 'meta-vs-google' && (
-              <>
-                {/* Meta Selection */}
+          <div className="p-6">
+            {activeTab === 'accounts' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">M</span>
-                    </div>
-                    Meta Ads Account
-                  </h3>
-
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Account 1</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Meta &amp; Google ads accounts. Cannot select the same in both.</p>
                   <select
-                    value={selectedMetaAccount || ''}
-                    onChange={(e) => setSelectedMetaAccount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select Meta Account</option>
-                    {metaAccounts.map(account => (
-                      <option key={account.account_id} value={account.account_id}>
-                        {account.account_name || account.account_id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Google Selection */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">G</span>
-                    </div>
-                    Google Ads Account
-                  </h3>
-
-                  <select
-                    value={selectedGoogleAccount || ''}
+                    value={selectedAccount1 || ''}
                     onChange={(e) => {
-                      console.log('Google account selected:', e.target.value);
-                      setSelectedGoogleAccount(e.target.value);
+                      const v = e.target.value || null;
+                      setSelectedAccount1(v);
+                      if (v && v === selectedAccount2) setSelectedAccount2(null);
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">Select Google Account</option>
-                    {googleAccountsList?.map(account => (
-                      <option key={account.customer_id} value={account.customer_id}>
-                        {account.descriptive_name || account.customer_id}
+                    <option value="">Select account</option>
+                    {allAccounts.map((a) => (
+                      <option key={a.unifiedId} value={a.unifiedId} disabled={a.unifiedId === selectedAccount2}>
+                        {a.platform === 'meta' ? '[Meta] ' : '[Google] '}{a.label}
                       </option>
                     ))}
                   </select>
                 </div>
-              </>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Account 2</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Choose a different account from Account 1.</p>
+                  <select
+                    value={selectedAccount2 || ''}
+                    onChange={(e) => {
+                      const v = e.target.value || null;
+                      setSelectedAccount2(v);
+                      if (v && v === selectedAccount1) setSelectedAccount1(null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select account</option>
+                    {allAccounts.map((a) => (
+                      <option key={a.unifiedId} value={a.unifiedId} disabled={a.unifiedId === selectedAccount1}>
+                        {a.platform === 'meta' ? '[Meta] ' : '[Google] '}{a.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
 
-            {comparisonMode === 'meta-vs-meta' && (
+            {activeTab === 'campaigns' && (
               <>
-                {/* Meta Account 1 */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">M1</span>
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Add campaign to comparison</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">All Meta &amp; Google campaigns (Google via customers-with-campaigns). Pick up to 2. Metrics for Meta only.</p>
+                </div>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-2">
+                  {customersWithCampaignsLoading && (
+                    <div className="flex items-center gap-2 py-2 text-sm text-violet-600 dark:text-violet-400">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-violet-600 border-t-transparent" />
+                      Loading Google campaigns (customers-with-campaigns)…
                     </div>
-                    Meta Ads Account 1
-                  </h3>
-
-                  <select
-                    value={selectedMetaAccount || ''}
-                    onChange={(e) => setSelectedMetaAccount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select Meta Account 1</option>
-                    {metaAccounts.map(account => (
-                      <option key={account.account_id} value={account.account_id}>
-                        {account.account_name || account.account_id}
-                      </option>
-                    ))}
-                  </select>
+                  )}
+                  {!customersWithCampaignsLoading && allCampaigns.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No campaigns from Meta or Google accounts.</p>
+                  ) : (
+                    allCampaigns.map((c) => {
+                      const added = comparisonCampaigns.some(x => x.campaignId === c.campaignId);
+                      const atLimit = comparisonCampaigns.length >= 2;
+                      const canAdd = !added && !atLimit && c.platform === 'meta';
+                      return (
+                        <div
+                          key={`${c.platform}-${c.campaignId}`}
+                          className={`flex items-center justify-between gap-2 py-2 px-3 rounded-lg border ${
+                            added ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-300 dark:border-violet-700' : 'border-gray-200 dark:border-gray-600'
+                          }`}
+                        >
+                          <span className="text-sm text-gray-900 dark:text-white truncate flex-1" title={c.campaignName}>
+                            {c.platform === 'meta' ? '[Meta] ' : '[Google] '}{c.campaignName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => canAdd && addCampaignToComparison({ ...c })}
+                            disabled={!canAdd}
+                            className={`flex items-center gap-1 shrink-0 px-2 py-1 rounded text-xs font-medium transition ${
+                              canAdd
+                                ? 'bg-violet-600 text-white hover:bg-violet-700'
+                                : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                            }`}
+                            title={c.platform === 'google' ? 'Metrics available for Meta campaigns only' : undefined}
+                          >
+                            <PlusCircleIcon className="w-4 h-4" />
+                            {added ? 'Added' : 'Add'}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
-                {/* Meta Account 2 */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">M2</span>
+                {comparisonCampaigns.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Campaigns in comparison</h3>
+                      <button
+                        type="button"
+                        onClick={clearCampaignsComparison}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                        Clear all
+                      </button>
                     </div>
-                    Meta Ads Account 2
-                  </h3>
-
-                  <select
-                    value={selectedMetaAccount2 || ''}
-                    onChange={(e) => setSelectedMetaAccount2(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select Meta Account 2</option>
-                    {metaAccounts.map(account => (
-                      <option key={account.account_id} value={account.account_id}>
-                        {account.account_name || account.account_id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
-            {comparisonMode === 'google-vs-google' && (
-              <>
-                {/* Google Account 1 */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">G1</span>
+                    <div className="flex flex-wrap gap-2">
+                      {comparisonCampaigns.map((c) => (
+                        <span
+                          key={`${c.platform}-${c.campaignId}`}
+                          className="inline-flex items-center gap-2 pl-3 pr-1 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-gray-900 dark:text-white text-sm"
+                        >
+                          <span className="truncate max-w-[200px]" title={c.campaignName}>{c.platform === 'meta' ? '[Meta] ' : '[Google] '}{c.campaignName}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeCampaignFromComparison(c.campaignId)}
+                            className="p-1 rounded hover:bg-violet-200 dark:hover:bg-violet-800/50 transition"
+                            title="Remove from comparison"
+                          >
+                            <XMarkIcon className="w-4 h-4" />
+                          </button>
+                        </span>
+                      ))}
                     </div>
-                    Google Ads Account 1
-                  </h3>
-
-                  <select
-                    value={selectedGoogleAccount || ''}
-                    onChange={(e) => {
-                      console.log('Google account 1 selected:', e.target.value);
-                      setSelectedGoogleAccount(e.target.value);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select Google Account 1</option>
-                    {googleAccountsList?.map(account => (
-                      <option key={account.customer_id} value={account.customer_id}>
-                        {account.descriptive_name || account.customer_id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Google Account 2 */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
-                      <span className="text-white font-bold text-sm">G2</span>
-                    </div>
-                    Google Ads Account 2
-                  </h3>
-
-                  <select
-                    value={selectedGoogleAccount2 || ''}
-                    onChange={(e) => {
-                      console.log('Google account 2 selected:', e.target.value);
-                      setSelectedGoogleAccount2(e.target.value);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select Google Account 2</option>
-                    {googleAccountsList?.map(account => (
-                      <option key={account.customer_id} value={account.customer_id}>
-                        {account.descriptive_name || account.customer_id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    {campaignsDataLoading && (
+                      <div className="flex items-center gap-2 mt-3 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-violet-600 border-t-transparent" />
+                        Loading campaign metrics…
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
+        )}
 
         {/* Comparison Results */}
         {(comparisonData.account1 || comparisonData.account2) && (
@@ -1285,16 +1343,16 @@ const ComparisonDashboard = () => {
                       </>
                     )}
                     <tr>
-                      <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">Conversions</td>
-                      <td className={`py-3 px-4 ${comparisonData.account1 ? getDifferenceColor('conversions', 'account1') : 'text-gray-500'}`}>
-                        {comparisonData.account1 ? formatNumber(comparisonData.account1.conversions) : 'N/A'}
+                      <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">All conversions</td>
+                      <td className={`py-3 px-4 ${comparisonData.account1 ? getDifferenceColor('allConversions', 'account1') : 'text-gray-500'}`}>
+                        {comparisonData.account1 ? formatNumber(comparisonData.account1.allConversions) : 'N/A'}
                       </td>
-                      <td className={`py-3 px-4 ${comparisonData.account2 ? getDifferenceColor('conversions', 'account2') : 'text-gray-500'}`}>
-                        {comparisonData.account2 ? formatNumber(comparisonData.account2.conversions) : 'N/A'}
+                      <td className={`py-3 px-4 ${comparisonData.account2 ? getDifferenceColor('allConversions', 'account2') : 'text-gray-500'}`}>
+                        {comparisonData.account2 ? formatNumber(comparisonData.account2.allConversions) : 'N/A'}
                       </td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                        {comparisonData.differences.conversions ?
-                          `${comparisonData.differences.conversions.percentage > 0 ? '+' : ''}${comparisonData.differences.conversions.percentage.toFixed(1)}%` :
+                        {comparisonData.differences.allConversions ?
+                          `${comparisonData.differences.allConversions.percentage > 0 ? '+' : ''}${comparisonData.differences.allConversions.percentage.toFixed(1)}%` :
                           'N/A'
                         }
                       </td>
@@ -1307,14 +1365,16 @@ const ComparisonDashboard = () => {
         )}
 
         {/* No Selection Message */}
-        {(!comparisonData.account1 && !comparisonData.account2) && (
+        {(!comparisonData.account1 && !comparisonData.account2) && !(activeTab === 'campaigns' && campaignsDataLoading) && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
             <ChartBarIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              Select Accounts to Compare
+              {activeTab === 'campaigns' ? 'Add Campaigns to Compare' : 'Select Accounts to Compare'}
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
-              Choose accounts from Meta Ads and Google Ads to see a detailed comparison of their performance metrics.
+              {activeTab === 'campaigns'
+                ? 'Add up to 2 Meta campaigns from the list above to compare their performance. Google campaigns are listed but metrics are available for Meta only.'
+                : 'Choose two different accounts (Meta or Google) above to see a detailed comparison of their performance metrics.'}
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-# AdSynq - B2B SaaS Dashboard
+# KAMPALO - B2B SaaS Dashboard
 
 A modern, responsive B2B SaaS dashboard built with React, Vite, Tailwind CSS, Framer Motion, and Recharts.
 

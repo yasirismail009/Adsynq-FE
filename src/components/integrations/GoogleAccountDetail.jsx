@@ -37,6 +37,7 @@ import {
   selectGoogleSa360ReportsError,
   setSelectedSa360Campaign
 } from '../../store/slices/googleSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 // Helper functions for chart colors
 const getStatusColor = (status) => {
@@ -68,11 +69,23 @@ const GoogleAccountDetail = () => {
   const overallStats = useSelector(selectGoogleOverallStats);
   const loading = useSelector(selectGoogleOverallStatsLoading);
   const error = useSelector(selectGoogleOverallStatsError);
+  const platformConnections = useSelector(selectPlatformConnections);
   
   // SA360 reports selectors
   const sa360Reports = useSelector(selectGoogleSa360Reports);
   const sa360ReportsLoading = useSelector(selectGoogleSa360ReportsLoading);
   const sa360ReportsError = useSelector(selectGoogleSa360ReportsError);
+  
+  // Check if Google account needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.google_accounts) {
+      const firstGoogleAccount = platformConnections.result.google_accounts[0];
+      if (firstGoogleAccount?.needs_refresh === true) {
+        console.log('Google account needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+      }
+    }
+  }, [platformConnections, navigate]);
   
   const [selectedTimeframe, setSelectedTimeframe] = useState('all');
   const [dateRange, setDateRange] = useState(() => {
@@ -351,7 +364,7 @@ const GoogleAccountDetail = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">Error loading Google Ads data: {error}</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -365,7 +378,7 @@ const GoogleAccountDetail = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">Google Ads account not found</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -397,7 +410,7 @@ const GoogleAccountDetail = () => {
             </button>
             
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-[#174A6E]">
                 <img 
                   src="/assets/google.svg" 
                   alt="Google Ads" 
@@ -794,7 +807,7 @@ const GoogleAccountDetail = () => {
             
             <button
               onClick={() => window.location.reload()}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-3 py-1 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg text-sm font-medium transition-colors"
             >
               Refresh
             </button>
@@ -1408,7 +1421,7 @@ const GoogleAccountDetail = () => {
                    }));
                  }}
                  disabled={sa360ReportsLoading}
-                 className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
+                 className="px-3 py-1 bg-[#174A6E] hover:bg-[#0B3049] disabled:bg-[#174A6E]/50 text-white rounded-lg text-sm font-medium transition-colors"
                >
                  {sa360ReportsLoading ? 'Refreshing...' : 'Refresh Reports'}
                </button>
@@ -1624,7 +1637,7 @@ const GoogleAccountDetail = () => {
          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
          
          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
              <ChartBarIcon className="w-5 h-5" />
              <span>Create Campaign</span>
            </button>
@@ -1634,7 +1647,7 @@ const GoogleAccountDetail = () => {
              <span>Add Payment Method</span>
            </button>
            
-           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+           <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
              <CogIcon className="w-5 h-5" />
              <span>Account Settings</span>
            </button>
@@ -1658,7 +1671,7 @@ const GoogleAccountDetail = () => {
                    }));
                  }}
                  disabled={sa360ReportsLoading}
-                 className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg transition-colors"
+                 className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] disabled:bg-[#174A6E]/50 text-white rounded-lg transition-colors"
                >
                  {sa360ReportsLoading ? (
                    <>

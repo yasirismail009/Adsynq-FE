@@ -28,6 +28,7 @@ import {
   selectGoogleOverallStatsError,
   selectGoogleConnectionData
 } from '../../store/slices/googleSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 const GoogleDashboard = () => {
   const { t } = useTranslation();
@@ -36,10 +37,28 @@ const GoogleDashboard = () => {
   
   // Redux selectors
   const connectionData = useSelector(selectGoogleConnectionData);
+  const platformConnections = useSelector(selectPlatformConnections);
   const overallStats = useSelector(selectGoogleOverallStats);
   const loading = useSelector(selectGoogleOverallStatsLoading);
   const error = useSelector(selectGoogleOverallStatsError);
-  console.log("connectionData",connectionData);
+  
+  // Use platformConnections if connectionData is not available
+  const googleConnectionData = connectionData || (platformConnections?.error === false ? platformConnections : null);
+  console.log("connectionData", connectionData);
+  console.log("platformConnections", platformConnections);
+  console.log("googleConnectionData", googleConnectionData);
+  
+  // Check if Google account needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.google_accounts) {
+      const firstGoogleAccount = platformConnections.result.google_accounts[0];
+      if (firstGoogleAccount?.needs_refresh === true) {
+        console.log('Google account needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+      }
+    }
+  }, [platformConnections, navigate]);
+  
   // Removed the useEffect that dispatches fetchGoogleOverallStats
   // Now the component only uses existing data from Redux
 
@@ -102,21 +121,20 @@ const GoogleDashboard = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">{t('dashboard.errorLoadingGoogleStats')}: {error}</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           {t('common.backToIntegrations')}
         </button>
       </div>
     );
   }
-
   if (!overallStats?.result) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-600 dark:text-gray-400 mb-4">{t('common.noDataAvailableForPlatform')}</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           {t('common.backToIntegrations')}
         </button>
@@ -125,6 +143,7 @@ const GoogleDashboard = () => {
   }
 
   const { accounts, summary } = overallStats.result;
+  console.log("accounts",accounts)
 
   return (
     <div className="space-y-6">
@@ -140,7 +159,7 @@ const GoogleDashboard = () => {
             </button>
             
             <div className="flex items-center space-x-4 rtl:space-x-reverse">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-[#174A6E]">
                 <img 
                   src="/assets/google.svg" 
                   alt="Google Ads" 
@@ -513,8 +532,16 @@ const GoogleDashboard = () => {
                     </td>
                     <td className="py-3 px-4">
                       <button 
-                        onClick={() => navigate(`/google/${connectionData.result.google_account_id}/ad-account/${account.customer_id}`)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors"
+                        onClick={() => {
+                          const googleAccountId = googleConnectionData?.result?.google_account_id;
+                          if (googleAccountId) {
+                            navigate(`/google/${googleAccountId}/ad-account/${account.customer_id}`);
+                          } else {
+                            console.error('Google account ID not available in connection data');
+                          }
+                        }}
+                        disabled={!googleConnectionData?.result?.google_account_id}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {t('common.viewDetails')}
                       </button>
@@ -534,7 +561,7 @@ const GoogleDashboard = () => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.quickActions')}</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors rtl:space-x-reverse">
             <ChartBarIcon className="w-5 h-5" />
             <span>{t('common.createCampaign')}</span>
           </button>
@@ -544,7 +571,7 @@ const GoogleDashboard = () => {
             <span>{t('common.viewReports')}</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors rtl:space-x-reverse">
             <UsersIcon className="w-5 h-5" />
             <span>{t('common.manageAudiences')}</span>
           </button>

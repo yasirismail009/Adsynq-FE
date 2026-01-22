@@ -61,7 +61,7 @@ class ErrorBoundaryClass extends React.Component {
               )}
               <button
                 onClick={() => window.location.reload()}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-[#174A6E] hover:bg-[#0B3049] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#174A6E]"
               >
                 {t('common.refreshPage')}
               </button>

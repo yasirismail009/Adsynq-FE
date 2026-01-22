@@ -1,6 +1,6 @@
 # Toast Notification System Guide
 
-This guide explains how to use the integrated react-hot-toast notification system in your AdSynq application.
+This guide explains how to use the integrated react-hot-toast notification system in your KAMPALO application.
 
 ## 🚀 Quick Start
 

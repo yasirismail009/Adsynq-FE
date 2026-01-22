@@ -36,6 +36,7 @@ import {
   fetchMetaAccountOverviewGraph,
   fetchMetaUserAdAccounts
 } from '../../store/slices/metaSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 
 /**
@@ -126,6 +127,19 @@ const AdAccountDetail = () => {
   const loading = useSelector(state => accountId ? selectMetaAccountOverviewGraphLoading(state, accountId) : false);
   const error = useSelector(state => accountId ? selectMetaAccountOverviewGraphError(state, accountId) : null);
   const accountsLoading = useSelector(state => state.meta?.loading?.userAdAccounts || false);
+  const platformConnections = useSelector(selectPlatformConnections);
+  
+  // Check if Meta connection needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.meta_connections) {
+      const firstMetaConnection = platformConnections.result.meta_connections[0];
+      if (firstMetaConnection?.needs_refresh === true) {
+        console.log('Meta connection needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+        return;
+      }
+    }
+  }, [platformConnections, navigate]);
   
   const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
     const [dateRange, setDateRange] = useState(() => ({
@@ -534,7 +548,7 @@ const AdAccountDetail = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">{t('integrations.adAccountNotFound')}</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           {t('common.backToIntegrations')}
         </button>
@@ -558,7 +572,7 @@ const AdAccountDetail = () => {
             </button>
             
             <div className="flex items-center space-x-4 rtl:space-x-reverse">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-[#174A6E]">
                 <BuildingStorefrontIcon className="w-8 h-8 text-white" />
               </div>
               
@@ -802,7 +816,7 @@ const AdAccountDetail = () => {
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-3 py-1 bg-[#174A6E] hover:bg-[#0B3049] disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {loading ? t('common.loading') : t('integrations.refresh')}
             </button>
@@ -1322,7 +1336,7 @@ const AdAccountDetail = () => {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('integrations.campaignsList')} ({campaigns.length})</h2>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+          <button className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg text-sm font-medium transition-colors">
             {t('integrations.createCampaign')}
           </button>
         </div>
@@ -1393,7 +1407,7 @@ const AdAccountDetail = () => {
           <div className="text-center py-8">
             <ChartBarIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 dark:text-gray-400">{t('integrations.noCampaignsFound')}</p>
-            <button className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <button className="mt-4 px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg text-sm font-medium transition-colors">
               {t('integrations.createYourFirstCampaign')}
             </button>
           </div>
@@ -1405,7 +1419,7 @@ const AdAccountDetail = () => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.quickActions')}</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
             <ChartBarIcon className="w-5 h-5" />
             <span>{t('integrations.createCampaign')}</span>
           </button>
@@ -1415,7 +1429,7 @@ const AdAccountDetail = () => {
             <span>{t('integrations.addPaymentMethod')}</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
             <CogIcon className="w-5 h-5" />
             <span>{t('integrations.accountSettings')}</span>
           </button>

@@ -401,6 +401,9 @@
     "connected": "Connected",
     "notConnected": "Not Connected",
     "needsRefresh": "Needs refresh",
+    "connectionNeedsRefresh": "Connection needs refresh",
+    "refreshConnection": "Refresh Connection",
+    "refreshing": "Refreshing...",
     "connecting": "Connecting...",
     "disconnecting": "Disconnecting...",
     "navigating": "Navigating...",
@@ -611,12 +614,12 @@
     "signIn": "Sign In",
     "signUp": "Sign Up",
     "welcomeBack": "Welcome back",
-    "signInToAccount": "Sign in to your AdSynq account",
+    "signInToAccount": "Sign in to your KAMPALO account",
     "enterEmail": "Enter your email",
     "enterPassword": "Enter your password",
     "signUpForFree": "Sign up for free",
     "signInHere": "Sign in here",
-    "welcomeToAdSynq": "Welcome to AdSynq",
+    "welcomeToKAMPALO": "Welcome to KAMPALO",
     "createAccount": "Create your account to get started",
     "fullName": "Full name",
     "username": "Username",
@@ -748,6 +751,12 @@
       "whiteLabel": "White Label Solution",
       "customIntegrations": "Custom API Integrations"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "empty": "No unread notifications",
+    "ariaLabel": "Open notifications"
   }
 }
 

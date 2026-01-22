@@ -1,6 +1,6 @@
 # Theming System Guide
 
-A comprehensive theming system built with Tailwind CSS, CSS custom properties, and Redux Toolkit for the AdSynq B2B SaaS application.
+A comprehensive theming system built with Tailwind CSS, CSS custom properties, and Redux Toolkit for the KAMPALO B2B SaaS application.
 
 ## 🎨 Color Palette
 

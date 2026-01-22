@@ -1,6 +1,6 @@
 # Redux Toolkit & Axios Setup Documentation
 
-This document provides a comprehensive guide to the Redux Toolkit and Axios interceptors setup for the AdSynq B2B SaaS application.
+This document provides a comprehensive guide to the Redux Toolkit and Axios interceptors setup for the KAMPALO B2B SaaS application.
 
 ## 🏗️ Architecture Overview
 
@@ -368,7 +368,7 @@ Create a `.env` file in your project root:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000/api
-VITE_APP_NAME=AdSynq
+VITE_APP_NAME=KAMPALO
 VITE_APP_VERSION=1.0.0
 ```
 

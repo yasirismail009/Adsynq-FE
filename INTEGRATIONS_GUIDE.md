@@ -1,8 +1,8 @@
-# AdSynq Integration System Guide
+# KAMPALO Integration System Guide
 
 ## Overview
 
-The AdSynq integration system provides comprehensive management and analytics for multiple advertising platforms and e-commerce integrations. This system allows you to monitor, analyze, and optimize your advertising campaigns across various platforms from a single dashboard.
+The KAMPALO integration system provides comprehensive management and analytics for multiple advertising platforms and e-commerce integrations. This system allows you to monitor, analyze, and optimize your advertising campaigns across various platforms from a single dashboard.
 
 ## Supported Integrations
 
@@ -210,4 +210,4 @@ The AdSynq integration system provides comprehensive management and analytics fo
 
 ---
 
-*This guide is regularly updated to reflect the latest features and capabilities of the AdSynq integration system.* 
+*This guide is regularly updated to reflect the latest features and capabilities of the KAMPALO integration system.* 

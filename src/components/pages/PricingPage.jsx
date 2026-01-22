@@ -257,7 +257,7 @@ const PricingPage = () => {
 
     switch (variant) {
       case 'primary':
-        return `${baseStyles} bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500`;
+        return `${baseStyles} bg-[#174A6E] hover:bg-[#0B3049] text-white focus:ring-[#174A6E]`;
       case 'outline':
         return `${baseStyles} border-2 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`;
       case 'current':
@@ -331,7 +331,7 @@ const PricingPage = () => {
       case 'enterprise':
       case '3': // Handle numeric ID for enterprise plan
         // For enterprise plan, redirect to contact sales
-        window.location.href = 'mailto:sales@adsynq.com?subject=Enterprise Plan Inquiry';
+        window.location.href = 'mailto:sales@kampalo.com?subject=Enterprise Plan Inquiry';
         break;
 
       default:

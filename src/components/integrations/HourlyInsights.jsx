@@ -304,7 +304,7 @@ const HourlyInsights = ({
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-blue-600 to-blue-800 rounded"></div>
+                <div className="w-4 h-4 bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded"></div>
                 <span className="text-sm text-gray-600 dark:text-gray-400">Spend</span>
               </div>
               <div className="flex items-center space-x-2">
@@ -316,7 +316,7 @@ const HourlyInsights = ({
                 <span className="text-sm text-gray-600 dark:text-gray-400">Clicks</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-purple-600 to-purple-800 rounded"></div>
+                <div className="w-4 h-4 bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded"></div>
                 <span className="text-sm text-gray-600 dark:text-gray-400">CTR</span>
               </div>
               <div className="flex items-center space-x-2">

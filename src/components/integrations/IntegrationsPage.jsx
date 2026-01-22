@@ -31,8 +31,8 @@ import { showSubscriptionDialog } from '../../store/slices/subscriptionSlice';
 // TikTok and Shopify integrations removed - currently targeting only Google and Meta
 import { useDispatch } from 'react-redux';
 import { useAppSelector } from '../../store/hooks';
+import { useSyncCompletedPolling } from '../../hooks/useSyncCompletedPolling';
 import SA360CampaignAssetsTest from './SA360CampaignAssetsTest';
-
 
 const IntegrationsPage = () => {
   const { t } = useTranslation();
@@ -65,7 +65,10 @@ const IntegrationsPage = () => {
   // Local state for connection loading
   const [connectingPlatforms, setConnectingPlatforms] = useState(new Set());
   const [disconnectingPlatforms, setDisconnectingPlatforms] = useState(new Set());
+  const [refreshingPlatforms, setRefreshingPlatforms] = useState(new Set());
   const [oauthProcessing, setOauthProcessing] = useState(false);
+  // Track if OAuth is for refresh (to pass sync_data: false)
+  const [isRefreshOAuth, setIsRefreshOAuth] = useState(false);
   const [oauthData, setOauthData] = useState(null);
   const [oauthError, setOauthError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -80,6 +83,9 @@ const IntegrationsPage = () => {
   const [showMetaAdAccountSelection, setShowMetaAdAccountSelection] = useState(false);
   const [availableMetaAdAccounts, setAvailableMetaAdAccounts] = useState([]);
   const [loadingMetaAdAccounts, setLoadingMetaAdAccounts] = useState(false);
+  
+  // Track if user dismissed selection modals (prevents reopen loop on API errors like 404)
+  const selectionModalDismissedRef = useRef({ google: false, meta: false });
 
   // Platform connections state
   const [platformConnections, setPlatformConnections] = useState(null);
@@ -91,10 +97,12 @@ const IntegrationsPage = () => {
   const hasInitializedRef = useRef(false);
   
   const dispatch = useDispatch();
+  const { startPolling: startSyncCompletedPolling } = useSyncCompletedPolling();
 
   // Fetch available customers for selection
   const fetchAvailableCustomers = useCallback(async () => {
-    if (hasFetchedCustomersRef.current || loadingCustomers) {
+    // NOTE: don't depend on loadingCustomers here; keep callback stable to avoid effects re-triggering
+    if (hasFetchedCustomersRef.current) {
       console.log('Skipping duplicate customers fetch');
       return;
     }
@@ -119,11 +127,12 @@ const IntegrationsPage = () => {
     } finally {
       setLoadingCustomers(false);
     }
-  }, [loadingCustomers]);
+  }, []);
 
   // Fetch available Meta ad accounts for selection
   const fetchAvailableMetaAdAccounts = useCallback(async () => {
-    if (hasFetchedMetaAccountsRef.current || loadingMetaAdAccounts) {
+    // NOTE: don't depend on loadingMetaAdAccounts here; keep callback stable to avoid effects re-triggering
+    if (hasFetchedMetaAccountsRef.current) {
       console.log('Skipping duplicate Meta ad accounts fetch');
       return;
     }
@@ -148,7 +157,7 @@ const IntegrationsPage = () => {
     } finally {
       setLoadingMetaAdAccounts(false);
     }
-  }, [loadingMetaAdAccounts]);
+  }, []);
 
   // Handle customer selection (legacy - for single customer)
   const handleCustomerSelect = async (customerId) => {
@@ -208,6 +217,7 @@ const IntegrationsPage = () => {
 
         showSuccessToast(successMessage);
         setShowCustomerSelection(false);
+        startSyncCompletedPolling();
       } else {
         throw new Error(response.data.message || 'Failed to select customers and campaigns');
       }
@@ -250,6 +260,7 @@ const IntegrationsPage = () => {
 
         showSuccessToast(successMessage);
         setShowMetaAdAccountSelection(false);
+        startSyncCompletedPolling();
       } else {
         throw new Error(response.data.message || 'Failed to select ad accounts and campaigns');
       }
@@ -281,7 +292,7 @@ const IntegrationsPage = () => {
     }
   }, [loadingConnections]);
 
-  // Load integrations and ensure subscription data is available
+  // Load integrations, platform connections, and subscription/current on mount
   useEffect(() => {
     if (hasInitializedRef.current) {
       console.log('Skipping duplicate initialization');
@@ -292,12 +303,7 @@ const IntegrationsPage = () => {
     console.log('Initializing IntegrationsPage - loading data');
     loadIntegrations();
     fetchPlatformConnections();
-
-    // Ensure subscription data is loaded
-    if (!subscription) {
-      console.log('Subscription not available, fetching...');
-      dispatch(fetchCurrentSubscription());
-    }
+    dispatch(fetchCurrentSubscription());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -308,16 +314,25 @@ const IntegrationsPage = () => {
       return;
     }
 
+    const hasMetaConnection =
+      Array.isArray(platformConnections?.meta_connections) &&
+      platformConnections.meta_connections.length > 0;
+
     console.log('Selection modal check:', {
       subscription,
       hasGoogleAccount: subscription?.has_google_account,
       googleHasSelected: subscription?.google_customer_status?.has_selected,
       hasMetaAccount: subscription?.has_meta_account,
-      metaHasSelected: subscription?.meta_ad_account_status?.has_selected
+      metaHasSelected: subscription?.meta_ad_account_status?.has_selected,
+      hasMetaConnection
     });
 
-    // Check for Google - show modal
-    if (subscription.has_google_account && !subscription.google_customer_status?.has_selected) {
+    // Check for Google - show modal (unless user dismissed it)
+    if (
+      subscription.has_google_account &&
+      !subscription.google_customer_status?.has_selected &&
+      !selectionModalDismissedRef.current.google
+    ) {
       console.log('Showing Google customer selection modal');
       fetchAvailableCustomers();
       setShowCustomerSelection(true);
@@ -325,8 +340,13 @@ const IntegrationsPage = () => {
       return;
     }
     
-    // Check for Meta - show modal
-    if (subscription.has_meta_account && !subscription.meta_ad_account_status?.has_selected) {
+    // Check for Meta - show modal (unless user dismissed it)
+    if (
+      subscription.has_meta_account &&
+      !subscription.meta_ad_account_status?.has_selected &&
+      !selectionModalDismissedRef.current.meta &&
+      hasMetaConnection
+    ) {
       console.log('Showing Meta ad account selection modal');
       fetchAvailableMetaAdAccounts();
       setShowMetaAdAccountSelection(true);
@@ -337,7 +357,7 @@ const IntegrationsPage = () => {
     console.log('Hiding selection modals - accounts already selected');
     setShowCustomerSelection(false);
     setShowMetaAdAccountSelection(false);
-  }, [subscription, fetchAvailableCustomers, fetchAvailableMetaAdAccounts]);
+  }, [subscription, platformConnections, fetchAvailableCustomers, fetchAvailableMetaAdAccounts]);
 
   // Handle OAuth callback on component mount
   useEffect(() => {
@@ -348,36 +368,52 @@ const IntegrationsPage = () => {
       const error = params.get('error');
       console.log("Test",code, state, error);
       
+      // Check if this is a refresh operation from localStorage
+      const isRefresh = localStorage.getItem('oauth_refresh_flag') === 'true';
+      const refreshPlatform = localStorage.getItem('oauth_refresh_platform');
+      
+      if (isRefresh && refreshPlatform) {
+        setIsRefreshOAuth(true);
+      }
+      
       if (code && state === 'google') {
         // Handle Google OAuth callback
         handleGoogleOAuthCallback(code);
         
-        // Clean up URL
+        // Clean up URL and localStorage
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
+        localStorage.removeItem('oauth_refresh_flag');
+        localStorage.removeItem('oauth_refresh_platform');
       } else if (code && state === 'meta') {
         // Handle Facebook OAuth callback
         handleFacebookOAuthCallback(code);
         
-        // Clean up URL
+        // Clean up URL and localStorage
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
+        localStorage.removeItem('oauth_refresh_flag');
+        localStorage.removeItem('oauth_refresh_platform');
       } else if (code && state) {
         // Handle other OAuth callbacks (Google, Meta, etc.)
         if (state === 'google' || state === 'meta') {
           handleOAuthCallback(state, code);
           
-          // Clean up URL
+          // Clean up URL and localStorage
           const cleanUrl = window.location.pathname;
           window.history.replaceState({}, document.title, cleanUrl);
+          localStorage.removeItem('oauth_refresh_flag');
+          localStorage.removeItem('oauth_refresh_platform');
         }
       } else if (error) {
         console.error('OAuth error:', error);
         setOauthError(error);
         
-        // Clean up URL
+        // Clean up URL and localStorage
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
+        localStorage.removeItem('oauth_refresh_flag');
+        localStorage.removeItem('oauth_refresh_platform');
       }
     };
 
@@ -392,27 +428,55 @@ const IntegrationsPage = () => {
       
       console.log('Processing Google OAuth callback with code:', code);
       
+      // Check localStorage directly for refresh flag (state might not be updated yet)
+      const wasRefresh = localStorage.getItem('oauth_refresh_flag') === 'true';
+      console.log('Is refresh operation:', wasRefresh);
+      
       // Fetch OAuth profile using the new approach
       const oauthData = await fetchGoogleOAuthProfile(code);
       setOauthData(oauthData);
       
       console.log('Google OAuth profile data:', oauthData);
       
+      // Add sync_data flag based on whether this is a refresh
+      const connectData = {
+        ...oauthData,
+        sync_data: !wasRefresh // false if refresh, true if new connection
+      };
+      
+      console.log('Connect data with sync_data:', connectData.sync_data, 'wasRefresh:', wasRefresh);
+      
       // Connect the Google account
-      const result = await dispatch(connectGoogleAccount(oauthData)).unwrap();
+      const result = await dispatch(connectGoogleAccount(connectData)).unwrap();
       console.log('Google account connected successfully:', result);
+      
+      // Reset refresh flag
+      setIsRefreshOAuth(false);
       
       // Refresh integrations to show the new connection
       loadIntegrations();
       
-      // Open account selection modal (instead of navigating to a separate page)
-      fetchAvailableCustomers();
-      setShowCustomerSelection(true);
-      setShowMetaAdAccountSelection(false);
+      // Only open account selection modal if this is a new connection (not refresh)
+      // and user has not already selected (has_selected) for this platform
+      if (!wasRefresh && !subscription?.google_customer_status?.has_selected) {
+        startSyncCompletedPolling();
+        selectionModalDismissedRef.current.google = false;
+        fetchAvailableCustomers();
+        setShowCustomerSelection(true);
+        setShowMetaAdAccountSelection(false);
+      } else if (!wasRefresh && subscription?.google_customer_status?.has_selected) {
+        await fetchPlatformConnections();
+        await dispatch(fetchCurrentSubscription());
+      } else {
+        // For refresh, just refresh platform connections
+        await fetchPlatformConnections();
+        showSuccessToast('Google connection refreshed successfully!');
+      }
 
     } catch (error) {
       console.error('Error processing Google OAuth callback:', error);
       setOauthError(error.message || 'Failed to process Google OAuth callback');
+      setIsRefreshOAuth(false);
     } finally {
       setOauthProcessing(false);
     }
@@ -426,27 +490,57 @@ const IntegrationsPage = () => {
       
       console.log('Processing Facebook OAuth callback with code:', code);
       
+      // Check localStorage directly for refresh flag (state might not be updated yet)
+      const wasRefresh = localStorage.getItem('oauth_refresh_flag') === 'true';
+      console.log('Is refresh operation:', wasRefresh);
+      
       // Fetch OAuth profile using the Facebook handler
       const oauthData = await fetchFacebookOAuthProfile(code);
       setOauthData(oauthData);
       
       console.log('Facebook OAuth profile data:', oauthData);
       
+      // Add sync_data flag based on whether this is a refresh
+      const connectData = {
+        ...oauthData,
+        sync_data: !wasRefresh // false if refresh, true if new connection
+      };
+      
+      console.log('Connect data with sync_data:', connectData.sync_data, 'wasRefresh:', wasRefresh);
+      
       // Connect the Facebook account
-      const result = await dispatch(connectMetaAccount(oauthData)).unwrap();
+      const result = await dispatch(connectMetaAccount(connectData)).unwrap();
       console.log('Facebook account connected successfully:', result);
+      
+      // Reset refresh flag
+      setIsRefreshOAuth(false);
       
       // Refresh integrations to show the new connection
       loadIntegrations();
       
-      // Open ad account selection modal (instead of navigating to a separate page)
-      fetchAvailableMetaAdAccounts();
-      setShowMetaAdAccountSelection(true);
-      setShowCustomerSelection(false);
+      // Only auto-open Meta selection modal when it's a new connection and user has
+      // not already selected (has_selected). useEffect opens it when platformConnections updates.
+      if (!wasRefresh && !subscription?.meta_ad_account_status?.has_selected) {
+        startSyncCompletedPolling();
+        selectionModalDismissedRef.current.meta = false;
+        await fetchPlatformConnections();
+        setShowMetaAdAccountSelection(false);
+        setShowCustomerSelection(false);
+      } else if (!wasRefresh && subscription?.meta_ad_account_status?.has_selected) {
+        await fetchPlatformConnections();
+        await dispatch(fetchCurrentSubscription());
+        setShowMetaAdAccountSelection(false);
+        setShowCustomerSelection(false);
+      } else {
+        // For refresh, just refresh platform connections
+        await fetchPlatformConnections();
+        showSuccessToast('Meta connection refreshed successfully!');
+      }
 
     } catch (error) {
       console.error('Error processing Facebook OAuth callback:', error);
       setOauthError(error.message || 'Failed to process Facebook OAuth callback');
+      setIsRefreshOAuth(false);
     } finally {
       setOauthProcessing(false);
     }
@@ -507,10 +601,13 @@ const IntegrationsPage = () => {
           });
         }
         
-        // Open account selection modal (instead of navigating to a separate page)
-        fetchAvailableCustomers();
-        setShowCustomerSelection(true);
-        setShowMetaAdAccountSelection(false);
+        // Open account selection modal only if not already selected (has_selected)
+        if (!subscription?.google_customer_status?.has_selected) {
+          selectionModalDismissedRef.current.google = false;
+          fetchAvailableCustomers();
+          setShowCustomerSelection(true);
+          setShowMetaAdAccountSelection(false);
+        }
         return;
       }
       
@@ -606,11 +703,21 @@ const IntegrationsPage = () => {
     removeIntegration(id);
   };
 
-  const handleConnect = async (integration) => {
+  const handleConnect = async (integration, isRefresh = false) => {
     const platformType = integration.integrations[0]?.type || 'google';
     
     try {
       setConnectingPlatforms(prev => new Set(prev).add(platformType));
+      
+      // Store refresh flag in localStorage to persist across OAuth redirect
+      if (isRefresh) {
+        setIsRefreshOAuth(true);
+        localStorage.setItem('oauth_refresh_flag', 'true');
+        localStorage.setItem('oauth_refresh_platform', platformType);
+      } else {
+        localStorage.removeItem('oauth_refresh_flag');
+        localStorage.removeItem('oauth_refresh_platform');
+      }
       
       // Handle different platform OAuth flows (currently only Google and Meta supported)
       if (platformType === 'google') {
@@ -630,6 +737,11 @@ const IntegrationsPage = () => {
         newSet.delete(platformType);
         return newSet;
       });
+      if (isRefresh) {
+        setIsRefreshOAuth(false);
+        localStorage.removeItem('oauth_refresh_flag');
+        localStorage.removeItem('oauth_refresh_platform');
+      }
     }
   };
 
@@ -791,7 +903,7 @@ const IntegrationsPage = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">Error loading integrations: {error}</p>
         <button 
           onClick={loadIntegrations}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Retry
         </button>
@@ -806,7 +918,7 @@ const IntegrationsPage = () => {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 text-white"
+          className="bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded-xl p-6 text-white"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -1108,6 +1220,7 @@ const IntegrationsPage = () => {
           const platformType = primaryPlatform?.type || 'google';
           const isConnecting = connectingPlatforms.has(platformType);
           const isDisconnecting = disconnectingPlatforms.has(platformType);
+          const isRefreshing = refreshingPlatforms.has(platformType);
           
           // Get Google account data if this is a Google integration
           const googleAccounts = platformType === 'google' && platformConnections?.google_accounts ? platformConnections.google_accounts : null;
@@ -1137,6 +1250,7 @@ const IntegrationsPage = () => {
               isConnecting={isConnecting}
               isDisconnecting={isDisconnecting}
               isNavigating={navigating}
+              isRefreshing={isRefreshing}
             />
           );
         })}
@@ -1160,7 +1274,7 @@ const IntegrationsPage = () => {
           </p>
           <button
             onClick={!hasSubscription ? handleSubscribe : handleEmptyStateConnect}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+            className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium"
           >
             {!hasSubscription ? t('integrations.subscribe') : t('integrations.connectIntegration')}
           </button>
@@ -1170,7 +1284,10 @@ const IntegrationsPage = () => {
       {/* Customer Selection Dialog (Google) */}
       <CustomerSelectionDialog
         isOpen={showCustomerSelection}
-        onClose={() => setShowCustomerSelection(false)}
+        onClose={() => {
+          selectionModalDismissedRef.current.google = true;
+          setShowCustomerSelection(false);
+        }}
         availableCustomers={availableCustomers}
         loadingCustomers={loadingCustomers}
         onCustomerSelect={handleCustomerSelect}
@@ -1181,7 +1298,10 @@ const IntegrationsPage = () => {
       {/* Meta Ad Account Selection Dialog */}
       <MetaAdAccountSelectionDialog
         isOpen={showMetaAdAccountSelection}
-        onClose={() => setShowMetaAdAccountSelection(false)}
+        onClose={() => {
+          selectionModalDismissedRef.current.meta = true;
+          setShowMetaAdAccountSelection(false);
+        }}
         availableAdAccounts={availableMetaAdAccounts}
         loadingAdAccounts={loadingMetaAdAccounts}
         onSubmit={handleMetaAdAccountSelect}

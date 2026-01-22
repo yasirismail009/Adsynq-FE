@@ -10,14 +10,14 @@ const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 const axiosPublic = axios.create({
   baseURL,
   headers: getSecureHeaders(),
-  timeout: 10000, // 10 second timeout
+  timeout: 60000, // 60 second timeout (increased from 10s)
 });
 
 // Create axios instance WITH token (for protected endpoints)
 const axiosPrivate = axios.create({
   baseURL,
   headers: getSecureHeaders(),
-  timeout: 10000, // 10 second timeout
+  timeout: 60000, // 60 second timeout (increased from 10s)
 });
 
 // Public instance interceptors (no token)
@@ -35,6 +35,28 @@ axiosPublic.interceptors.request.use(
 axiosPublic.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle timeout errors gracefully
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      console.warn('Public API Request timeout:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        timeout: error.config?.timeout
+      });
+      return Promise.reject({
+        ...error,
+        response: {
+          ...error.response,
+          data: {
+            error: true,
+            message: 'Request timeout. Please try again or check your connection.',
+            timeout: true
+          },
+          status: 408
+        },
+        isTimeout: true
+      });
+    }
+    
     console.error('Public response interceptor error:', error);
     return Promise.reject(error);
   }
@@ -96,6 +118,29 @@ axiosPrivate.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // Handle timeout errors gracefully - don't break the UI
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      console.warn('API Request timeout:', {
+        url: originalRequest?.url,
+        method: originalRequest?.method,
+        timeout: originalRequest?.timeout
+      });
+      // Return a graceful error response instead of breaking
+      return Promise.reject({
+        ...error,
+        response: {
+          ...error.response,
+          data: {
+            error: true,
+            message: 'Request timeout. Please try again or check your connection.',
+            timeout: true
+          },
+          status: 408
+        },
+        isTimeout: true
+      });
+    }
+    
     // Log error details in development
     if (import.meta.env.DEV) {
       console.error('API Error:', {
@@ -104,7 +149,8 @@ axiosPrivate.interceptors.response.use(
         url: originalRequest?.url,
         method: originalRequest?.method,
         hasRetry: originalRequest?._retry,
-        errorMessage: error.response?.data
+        errorMessage: error.response?.data,
+        isTimeout: error.code === 'ECONNABORTED'
       });
     }
 
@@ -247,7 +293,10 @@ export const apiService = {
     metaRefreshTokens: (accountId) => axiosPrivate.post(`/meta/refresh-tokens/${accountId}/`),
     metaAccountData: (accountId) => axiosPrivate.get(`/meta/account/${accountId}/`),
     metaAccountOverviewGraph: (accountId, params) => axiosPrivate.get(`/meta/account-overview-graph/${accountId}/`, { params }),
-    metaOverallStats: (params) => axiosPrivate.get('/meta/overall-stats/', { params }),
+    metaOverallStats: (params) => axiosPrivate.get('/meta/overall-stats/', { 
+      params,
+      timeout: 120000 // 2 minutes timeout for Meta overall stats
+    }),
     metaUserAdAccounts: () => axiosPrivate.get('/meta/user-ad-accounts-graph/'),
     metaCampaignDetails: (campaignId, params) => axiosPrivate.get(`/meta/campaign-details/${campaignId}/`, { params }),
     metaCampaignPerformance: (campaignId, params) => axiosPrivate.get(`/meta/campaign-details/${campaignId}/`, { params }),
@@ -269,13 +318,14 @@ export const apiService = {
          
   },
 
-  // Notifications endpoints
+  // Notifications endpoints (see Notifications Frontend Implementation Guide)
   notifications: {
-    list: (params) => axiosPrivate.get('/notifications/', { params }),
-    markAsRead: (notificationId) => axiosPrivate.put(`/notifications/${notificationId}/read/`),
-    markAllAsRead: () => axiosPrivate.put('/notifications/read-all/'),
+    list: (params = {}) => axiosPrivate.get('/notifications/', { params }),
+    unreadCount: () => axiosPrivate.get('/notifications/unread-count/'),
+    get: (id) => axiosPrivate.get(`/notifications/${id}/`),
+    markAsRead: (notificationId) => axiosPrivate.post(`/notifications/${notificationId}/read/`),
+    markAllAsRead: () => axiosPrivate.post('/notifications/mark-all-read/'),
     delete: (notificationId) => axiosPrivate.delete(`/notifications/${notificationId}/`),
-    update: (notificationId, data) => axiosPrivate.put(`/notifications/${notificationId}/`, data),
   },
 
   // Subscription endpoints

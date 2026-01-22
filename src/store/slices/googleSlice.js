@@ -35,7 +35,8 @@ export const connectGoogleAccount = createAsyncThunk(
       const connectPayload = {
         user_data: data.user_data,
         token_data: data.token_data,
-        advertising_data: data.advertising_data
+        advertising_data: data.advertising_data,
+        sync_data: data.sync_data !== undefined ? data.sync_data : true // Default to true for new connections
       };
 
       console.log('Sending Google connection payload:', connectPayload);
@@ -49,6 +50,12 @@ export const connectGoogleAccount = createAsyncThunk(
       return response.data;
     } catch (error) {
       console.error('Google connection error:', error);
+      
+      // Handle timeout errors gracefully
+      if (error.isTimeout || error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        return rejectWithValue('Request timeout. Please try again.');
+      }
+      
       return rejectWithValue(error.response?.data?.message || 'Failed to connect Google account');
     }
   }

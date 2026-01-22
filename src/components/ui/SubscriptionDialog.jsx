@@ -34,6 +34,7 @@ import {
   hideSubscriptionDialog,
   clearSubscriptionError
 } from '../../store/slices/subscriptionSlice';
+import { autoSelectAllCampaignsForPremium } from '../../utils/premium-campaign-auto-select';
 
 const SubscriptionDialog = () => {
   const { t } = useTranslation();
@@ -116,7 +117,20 @@ const SubscriptionDialog = () => {
       }
 
       // Success - refresh current subscription and dialog will close automatically via Redux
-      dispatch(fetchCurrentSubscription());
+      await dispatch(fetchCurrentSubscription()).unwrap();
+      
+      // Auto-select all campaigns if Premium Plan
+      if (selectedPlan.plan_type === 'premium') {
+        try {
+          const result = await autoSelectAllCampaignsForPremium('premium');
+          if (result.success && (result.details?.google?.campaignsSelected > 0 || result.details?.meta?.campaignsSelected > 0)) {
+            console.log('Premium auto-select completed:', result.message);
+          }
+        } catch (error) {
+          // Don't show error - this is a background operation
+          console.warn('Auto-select campaigns failed:', error);
+        }
+      }
     } catch (error) {
       // If create fails with 409 (conflict), try update instead
       if (error?.response?.status === 409 || error?.status === 409) {
@@ -125,7 +139,19 @@ const SubscriptionDialog = () => {
             plan_id: selectedPlan.id,
             billing_interval: billingInterval,
           })).unwrap();
-          dispatch(fetchCurrentSubscription());
+          await dispatch(fetchCurrentSubscription()).unwrap();
+          
+          // Auto-select all campaigns if Premium Plan
+          if (selectedPlan.plan_type === 'premium') {
+            try {
+              const result = await autoSelectAllCampaignsForPremium('premium');
+              if (result.success && (result.details?.google?.campaignsSelected > 0 || result.details?.meta?.campaignsSelected > 0)) {
+                console.log('Premium auto-select completed:', result.message);
+              }
+            } catch (error) {
+              console.warn('Auto-select campaigns failed:', error);
+            }
+          }
         } catch (updateError) {
           // Error handled by Redux
           console.error('Failed to update subscription:', updateError);
@@ -148,7 +174,20 @@ const SubscriptionDialog = () => {
       })).unwrap();
 
       // Success - refresh current subscription and dialog will close automatically via Redux
-      dispatch(fetchCurrentSubscription());
+      await dispatch(fetchCurrentSubscription()).unwrap();
+      
+      // Auto-select all campaigns if Premium Plan
+      if (selectedPlan.plan_type === 'premium') {
+        try {
+          const result = await autoSelectAllCampaignsForPremium('premium');
+          if (result.success && (result.details?.google?.campaignsSelected > 0 || result.details?.meta?.campaignsSelected > 0)) {
+            console.log('Premium auto-select completed:', result.message);
+          }
+        } catch (error) {
+          // Don't show error - this is a background operation
+          console.warn('Auto-select campaigns failed:', error);
+        }
+      }
     } catch (error) {
       // Error handled by Redux
     }
@@ -469,7 +508,7 @@ const SubscriptionDialog = () => {
                 <button
                   onClick={handleSubscribe}
                   disabled={operationLoading || selectedPlan.id === currentSubscription?.plan?.id}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors font-medium disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-[#174A6E] hover:bg-[#0B3049] disabled:bg-[#174A6E]/50 text-white rounded-lg transition-colors font-medium disabled:cursor-not-allowed"
                 >
                   {operationLoading ? (
                     <div className="flex items-center">

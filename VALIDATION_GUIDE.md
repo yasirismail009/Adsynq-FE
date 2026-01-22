@@ -1,6 +1,6 @@
 # Validation Utilities Guide
 
-This guide explains how to use the shared validation utilities in your AdSynq application.
+This guide explains how to use the shared validation utilities in your KAMPALO application.
 
 ## 🚀 Quick Start
 

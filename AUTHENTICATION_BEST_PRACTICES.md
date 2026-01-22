@@ -1,6 +1,6 @@
 # Authentication Best Practices Guide
 
-This document outlines the comprehensive security measures and best practices implemented in the AdSynq authentication system.
+This document outlines the comprehensive security measures and best practices implemented in the KAMPALO authentication system.
 
 ## 🔒 Security Features Implemented
 
@@ -389,4 +389,4 @@ describe('Authentication Flow', () => {
 
 ---
 
-This authentication system implements industry-leading security practices and provides a robust foundation for secure user authentication in the AdSynq application. 
+This authentication system implements industry-leading security practices and provides a robust foundation for secure user authentication in the KAMPALO application. 

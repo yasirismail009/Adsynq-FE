@@ -1,6 +1,6 @@
 # Shopify OAuth Integration Guide
 
-This guide covers the complete Shopify OAuth integration implementation for the AdSynq frontend application.
+This guide covers the complete Shopify OAuth integration implementation for the KAMPALO frontend application.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This guide covers the complete Shopify OAuth integration implementation for the 
 
 ## Overview
 
-The Shopify OAuth integration allows users to connect their Shopify stores to the AdSynq platform. The implementation follows a simplified flow where the frontend sends the OAuth code to the backend, which handles all subsequent API calls and data processing.
+The Shopify OAuth integration allows users to connect their Shopify stores to the KAMPALO platform. The implementation follows a simplified flow where the frontend sends the OAuth code to the backend, which handles all subsequent API calls and data processing.
 
 ### OAuth Flow
 

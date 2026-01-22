@@ -42,7 +42,7 @@ const PlatformDashboard = () => {
     meta: { 
       name: 'Meta Ads', 
       icon: '/assets/facebook.svg',
-      color: 'bg-blue-600',
+      color: 'bg-[#174A6E]',
       brandColor: '#1877F2',
       bgColor: '#e7f3ff',
       description: 'Manage Facebook and Instagram advertising campaigns'
@@ -95,7 +95,7 @@ const PlatformDashboard = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">Platform not found</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -228,7 +228,7 @@ const PlatformDashboard = () => {
             </span>
             
                          {platformData.status === 'needs_refresh' && (
-               <button className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+               <button className="flex items-center gap-2 px-3 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg text-sm font-medium transition-colors">
                  <ArrowPathIcon className="w-4 h-4" />
                  Refresh
                </button>
@@ -377,7 +377,7 @@ const PlatformDashboard = () => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
             <ChartBarIcon className="w-5 h-5" />
             <span>View Analytics</span>
           </button>

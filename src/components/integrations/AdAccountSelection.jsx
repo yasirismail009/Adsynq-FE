@@ -238,7 +238,7 @@ const AdAccountSelection = () => {
                   <div className="flex items-center space-x-4">
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                       selectedAccounts.includes(account.id)
-                        ? 'bg-blue-600 border-blue-600'
+                        ? 'bg-[#174A6E] border-[#174A6E]'
                         : 'border-gray-300 dark:border-gray-600'
                     }`}>
                       {selectedAccounts.includes(account.id) && (
@@ -270,7 +270,7 @@ const AdAccountSelection = () => {
                     }
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${
                       selectedAccounts.includes(account.id)
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        ? 'bg-[#174A6E] text-white hover:bg-[#0B3049]'
                         : (account.status && account.status.toLowerCase() !== 'active' && account.status !== 'ENABLED')
                           ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                           : !isEnterprise && selectedAccounts.length >= maxAdAccounts
@@ -309,7 +309,7 @@ const AdAccountSelection = () => {
             <button
               onClick={handleContinue}
               disabled={saving}
-              className="flex items-center px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+              className="flex items-center px-8 py-4 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
             >
               {saving ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>

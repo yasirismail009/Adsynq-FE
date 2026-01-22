@@ -61,6 +61,7 @@ import {
   selectGoogleSa360AssetsError,
   selectGoogleSelectedSa360Campaign
 } from '../../store/slices/googleSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 // Helper functions for chart colors
 const getStatusColor = (status) => {
@@ -206,6 +207,18 @@ const SA360CampaignDetail = () => {
   const sa360AssetsLoading = useSelector(selectGoogleSa360AssetsLoading);
   const sa360AssetsError = useSelector(selectGoogleSa360AssetsError);
   const selectedCampaign = useSelector(selectGoogleSelectedSa360Campaign);
+  const platformConnections = useSelector(selectPlatformConnections);
+  
+  // Check if Google account needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.google_accounts) {
+      const firstGoogleAccount = platformConnections.result.google_accounts[0];
+      if (firstGoogleAccount?.needs_refresh === true) {
+        console.log('Google account needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+      }
+    }
+  }, [platformConnections, navigate]);
   
   // Local state for dynamic date range - use useMemo to prevent recreation on every render
   const initialDateRange = useMemo(() => {
@@ -1604,7 +1617,7 @@ const SA360CampaignDetail = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-8 w-8">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-[#174A6E] to-[#0B3049] flex items-center justify-center">
                               <span className="text-xs font-medium text-white">
                                 {location.location_name.charAt(0)}
                               </span>
@@ -2266,7 +2279,7 @@ const SA360CampaignDetail = () => {
                     setCustomDateRange(customFromDate, customToDate);
                     setShowCustomDatePicker(false);
                   }}
-                  className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1 text-xs font-medium bg-[#174A6E] text-white rounded-md hover:bg-[#0B3049] transition-colors"
                 >
                   Apply
                 </button>

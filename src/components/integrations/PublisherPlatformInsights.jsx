@@ -162,8 +162,8 @@ const PublisherPlatformInsights = ({
                   <div className="flex items-center space-x-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                       isFacebook 
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                        ? 'bg-[#174A6E] text-white'
+                        : 'bg-gradient-to-r from-[#174A6E] to-[#0B3049] text-white'
                     }`}>
                       {isFacebook ? (
                         <BuildingStorefrontIcon className="w-6 h-6" />
@@ -348,7 +348,7 @@ const PublisherPlatformInsights = ({
             <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-gradient-to-r from-blue-600 to-blue-800 rounded"></div>
+                  <div className="w-4 h-4 bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded"></div>
                   <span className="text-sm text-gray-600 dark:text-gray-400">Spend</span>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -360,7 +360,7 @@ const PublisherPlatformInsights = ({
                   <span className="text-sm text-gray-600 dark:text-gray-400">Clicks</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-gradient-to-r from-purple-600 to-purple-800 rounded"></div>
+                  <div className="w-4 h-4 bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded"></div>
                   <span className="text-sm text-gray-600 dark:text-gray-400">CTR</span>
                 </div>
                 <div className="flex items-center space-x-2">

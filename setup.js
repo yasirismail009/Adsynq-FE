@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 Setting up AdSynq B2B SaaS Dashboard...\n');
+console.log('🚀 Setting up KAMPALO B2B SaaS Dashboard...\n');
 
 // Check if package.json exists
 if (!fs.existsSync('package.json')) {

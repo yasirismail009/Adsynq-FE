@@ -224,7 +224,7 @@ const CustomerSelectionDialog = ({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
                 >
                   {t('common.retry', 'Retry')}
                 </button>
@@ -258,7 +258,7 @@ const CustomerSelectionDialog = ({
                       <div className="flex items-center space-x-3 flex-1">
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                           isSelected 
-                            ? 'bg-blue-600 border-blue-600' 
+                            ? 'bg-[#174A6E] border-[#174A6E]' 
                             : 'border-gray-300 dark:border-gray-600'
                         }`}>
                           {isSelected && (
@@ -396,7 +396,7 @@ const CustomerSelectionDialog = ({
             <button
               onClick={handleSubmit}
               disabled={!canSubmit || isSubmitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isSubmitting ? (
                 <>

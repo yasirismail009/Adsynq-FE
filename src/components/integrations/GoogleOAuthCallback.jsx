@@ -150,7 +150,7 @@ const GoogleOAuthCallback = () => {
             </button>
             <button
               onClick={handleOAuthCallback}
-              className="flex-1 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex-1 px-4 py-2 text-white bg-[#174A6E] rounded-lg hover:bg-[#0B3049] transition-colors"
             >
               Try Again
             </button>
@@ -201,7 +201,7 @@ const GoogleOAuthCallback = () => {
               </button>
               <button
                 onClick={copyToClipboard}
-                className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-[#174A6E] rounded-lg hover:bg-[#0B3049] transition-colors"
               >
                 <ClipboardDocumentIcon className="w-4 h-4" />
                 <span>Copy JSON</span>
@@ -360,13 +360,13 @@ const GoogleOAuthCallback = () => {
                     Ready to Connect
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 mt-1">
-                    Click the button below to connect your Google account to AdSynq
+                    Click the button below to connect your Google account to KAMPALO
                   </p>
                 </div>
                 <button
                   onClick={handleConnectAccount}
                   disabled={connecting}
-                  className="inline-flex items-center space-x-2 px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center space-x-2 px-6 py-3 text-white bg-[#174A6E] rounded-lg hover:bg-[#0B3049] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {connecting ? (
                     <>

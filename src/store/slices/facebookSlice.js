@@ -10,7 +10,8 @@ export const connectMetaAccount = createAsyncThunk(
       const connectPayload = {
         user_data: data.user_data,
         token_data: data.token_data,
-        pages_data: data.pages_data
+        pages_data: data.pages_data,
+        sync_data: data.sync_data !== undefined ? data.sync_data : true // Default to true for new connections
       };
 
       console.log('Sending Facebook connection payload:', connectPayload);

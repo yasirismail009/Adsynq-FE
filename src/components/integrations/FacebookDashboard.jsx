@@ -35,6 +35,7 @@ import {
   selectMetaLoading, 
   selectMetaErrors 
 } from '../../store/slices/metaSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 const FacebookDashboard = () => {
   const { t } = useTranslation();
@@ -48,6 +49,7 @@ const FacebookDashboard = () => {
   const metaOverallStats = useSelector(selectMetaOverallStats);
   const metaLoading = useSelector(selectMetaLoading);
   const metaErrors = useSelector(selectMetaErrors);
+  const platformConnections = useSelector(selectPlatformConnections);
 
   // Create platformData from overall stats
   const platformData = metaOverallStats?.result ? {
@@ -61,6 +63,18 @@ const FacebookDashboard = () => {
     },
     createdDate: new Date().toLocaleDateString('en-GB')
   } : null;
+
+  // Check if Meta connection needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.meta_connections) {
+      const firstMetaConnection = platformConnections.result.meta_connections[0];
+      if (firstMetaConnection?.needs_refresh === true) {
+        console.log('Meta connection needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+        return;
+      }
+    }
+  }, [platformConnections, navigate]);
 
   // Fetch Meta overall stats on mount
   useEffect(() => {
@@ -292,7 +306,43 @@ const FacebookDashboard = () => {
   if (metaLoading.overallStats) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#174A6E]"></div>
+      </div>
+    );
+  }
+
+  // Show error message if there's an error (including timeout)
+  if (metaErrors.overallStats) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between rtl:flex-row-reverse mb-4">
+            <button
+              onClick={() => navigate('/integrations')}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-400 rtl:rotate-180" />
+            </button>
+          </div>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6 text-center">
+            <ExclamationTriangleIcon className="w-12 h-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {metaErrors.overallStats.includes('timeout') ? 'Request Timeout' : 'Error Loading Data'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              {metaErrors.overallStats}
+            </p>
+            <button
+              onClick={() => dispatch(fetchMetaOverallStats({ 
+                date_from: '2023-01-01', 
+                date_to: '2025-12-31' 
+              }))}
+              className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
+            >
+              {t('common.retry') || 'Retry'}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -369,7 +419,7 @@ const FacebookDashboard = () => {
             </button>
             
             <div className="flex items-center space-x-4 rtl:space-x-reverse">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-blue-600">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-[#174A6E]">
                 <img 
                   src="/assets/facebook.svg" 
                   alt="Facebook Ads" 
@@ -410,7 +460,7 @@ const FacebookDashboard = () => {
       </div>
 
       {/* Account Information */}
-      {platformData.userData && (
+      {platformData?.userData && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.accountInformation')}</h2>
           
@@ -475,7 +525,7 @@ const FacebookDashboard = () => {
 
       {/* Key Performance Summary */}
       {metaOverallStats?.result && (
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-800 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
+        <div className="bg-gradient-to-r from-[#174A6E] to-[#0B3049] dark:from-[#174A6E] dark:to-[#0B3049] rounded-xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-6 rtl:flex-row-reverse">
             <h2 className="text-xl font-bold text-white">Performance Summary</h2>
             <div className="flex items-center space-x-2 rtl:space-x-reverse">
@@ -1168,7 +1218,7 @@ const FacebookDashboard = () => {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('common.quickActions')}</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors rtl:space-x-reverse">
             <ChartBarIcon className="w-5 h-5" />
             <span>{t('common.createCampaign')}</span>
           </button>
@@ -1178,7 +1228,7 @@ const FacebookDashboard = () => {
             <span>{t('common.uploadCreative')}</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors rtl:space-x-reverse">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors rtl:space-x-reverse">
             <UsersIcon className="w-5 h-5" />
             <span>{t('common.manageAudiences')}</span>
           </button>

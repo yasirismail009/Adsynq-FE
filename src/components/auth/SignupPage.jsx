@@ -164,7 +164,7 @@ const SignupPage = () => {
         >
           <img src={logo} alt="Logo" className="w-16 h-16 mx-auto mb-6" />
             <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-3">
-              {t('auth.welcomeToAdSynq')}
+              {t('auth.welcomeToKAMPALO')}
             </h1>
             <p className="text-lg text-gray-600 dark:text-gray-400 font-medium">
               {t('auth.createAccount')}
@@ -521,7 +521,7 @@ const SignupPage = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                  className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 hover:from-blue-700 hover:via-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-[#174A6E] to-[#0B3049] hover:from-[#0B3049] hover:to-[#174A6E] focus:outline-none focus:ring-4 focus:ring-[#174A6E]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 {isLoading ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>

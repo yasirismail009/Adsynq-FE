@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { usePremiumAutoSelect } from '../../hooks/usePremiumAutoSelect';
 
 // Loading component for Suspense fallback
 const LoadingSpinner = () => (
@@ -38,7 +39,7 @@ const ErrorBoundary = ({ children }) => {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-[#174A6E] dark:bg-[#174A6E] text-white rounded-lg hover:bg-[#0B3049] dark:hover:bg-[#0B3049] transition-colors"
           >
             Refresh Page
           </button>
@@ -57,6 +58,9 @@ const Layout = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
+
+  // Auto-select all campaigns when subscription is Premium Plan
+  usePremiumAutoSelect();
 
   // Get page title based on current route
   const getPageTitle = () => {
@@ -77,7 +81,7 @@ const Layout = ({ children }) => {
       case '/settings':
         return t('sidebar.settings');
       default:
-        return 'AdSynq';
+        return 'KAMPALO';
     }
   };
 

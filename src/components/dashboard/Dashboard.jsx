@@ -741,7 +741,7 @@ const Dashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-white"
+          className="bg-gradient-to-r from-[#174A6E] to-[#0B3049] rounded-xl p-8 text-white"
         >
           <div className="text-center">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">

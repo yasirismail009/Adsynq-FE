@@ -40,6 +40,7 @@ import {
   fetchMetaCampaignInsightsPublisherPlatform,
   clearInsightsData
 } from '../../store/slices/metaSlice';
+import { selectPlatformConnections } from '../../store/slices/dashboardSlice';
 
 const CampaignDetail = () => {
   const { campaignId } = useParams();
@@ -88,6 +89,19 @@ const CampaignDetail = () => {
   const metaUserAdAccounts = useSelector(selectMetaUserAdAccounts) || null;
   const accountsLoading = useSelector(state => state.meta?.loading?.userAdAccounts || false);
   const directCampaignData = useSelector(state => state.meta?.campaignData || null);
+  const platformConnections = useSelector(selectPlatformConnections);
+  
+  // Check if Meta connection needs refresh and redirect to integrations page
+  useEffect(() => {
+    if (platformConnections?.error === false && platformConnections?.result?.meta_connections) {
+      const firstMetaConnection = platformConnections.result.meta_connections[0];
+      if (firstMetaConnection?.needs_refresh === true) {
+        console.log('Meta connection needs refresh, redirecting to integrations page');
+        navigate('/integrations', { replace: true });
+        return;
+      }
+    }
+  }, [platformConnections, navigate]);
   
   // Debug Redux state
   console.log('accountsLoading:', accountsLoading);
@@ -624,7 +638,7 @@ const CampaignDetail = () => {
         <p className="text-red-600 dark:text-red-400 mb-4">Invalid campaign ID</p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -649,7 +663,7 @@ const CampaignDetail = () => {
         </p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -667,7 +681,7 @@ const CampaignDetail = () => {
         </p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -688,7 +702,7 @@ const CampaignDetail = () => {
         </p>
         <button 
           onClick={() => navigate('/integrations')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
         >
           Back to Integrations
         </button>
@@ -710,7 +724,7 @@ const CampaignDetail = () => {
                 </button>
                 
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-purple-600">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden bg-[#174A6E]">
                     <ChartBarIcon className="w-8 h-8 text-white" />
                   </div>
                   
@@ -846,7 +860,7 @@ const CampaignDetail = () => {
                 onClick={() => handleTimeframeChange('7d')}
                 className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                   selectedTimeframe === '7d'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-[#174A6E] text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
@@ -856,7 +870,7 @@ const CampaignDetail = () => {
                 onClick={() => handleTimeframeChange('30d')}
                 className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                   selectedTimeframe === '30d'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-[#174A6E] text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
@@ -866,7 +880,7 @@ const CampaignDetail = () => {
                 onClick={() => handleTimeframeChange('90d')}
                 className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                   selectedTimeframe === '90d'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-[#174A6E] text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
@@ -902,7 +916,7 @@ const CampaignDetail = () => {
                 refreshAllInsights();
               }}
               disabled={isLoading || insightsLoading}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+              className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] disabled:bg-gray-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
             >
               <ArrowPathIcon className={`w-4 h-4 ${isLoading || insightsLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading || insightsLoading ? 'Loading...' : 'Refresh All'}</span>
@@ -1308,12 +1322,12 @@ const CampaignDetail = () => {
             )}
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
             <PhotoIcon className="w-5 h-5" />
             <span>Manage Ads</span>
           </button>
           
-          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+          <button className="flex items-center justify-center space-x-2 px-4 py-3 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors">
             <AdjustmentsHorizontalIcon className="w-5 h-5" />
             <span>Edit Targeting</span>
           </button>

@@ -150,10 +150,10 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
               exit={{ opacity: 0, x: -20 }}
               className="flex items-center space-x-2 rtl:space-x-reverse"
             >
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-[#174A6E] rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">A</span>
               </div>
-              <span className="font-semibold text-gray-900 dark:text-white">AdSynq</span>
+              <span className="font-semibold text-gray-900 dark:text-white">KAMPALO</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -344,7 +344,7 @@ const Sidebar = ({ isCollapsed, onToggle }) => {
               >
                 <button
                   onClick={handleSubscriptionClick}
-                  className="w-full flex items-center space-x-3 px-3 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                  className="w-full flex items-center space-x-3 px-3 py-3 bg-gradient-to-r from-[#174A6E] to-[#0B3049] hover:from-[#0B3049] hover:to-[#174A6E] text-white rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
                 >
                   <CurrencyDollarIcon className="w-5 h-5" />
                   <span className="font-medium">{t('subscription.managePlan')}</span>

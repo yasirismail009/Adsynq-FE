@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
+import {
   MagnifyingGlassIcon,
-  BellIcon,
   CogIcon,
   UserCircleIcon,
   Bars3Icon,
@@ -13,6 +12,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { logoutUser } from '../../store/slices/authSlice';
 import LanguageSwitcher from '../ui/LanguageSwitcher';
+import NotificationBell from '../ui/NotificationBell';
 
 const Header = ({ onMenuToggle, showMenuButton = false }) => {
   const { t } = useTranslation();
@@ -22,13 +22,6 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
   const userMenuRef = useRef(null);
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const [notifications] = useState([
-    { id: 1, message: 'New customer signed up', time: '2 min ago', unread: true },
-    { id: 2, message: 'Monthly report ready', time: '1 hour ago', unread: true },
-    { id: 3, message: 'System update completed', time: '3 hours ago', unread: false },
-  ]);
-
-  const unreadCount = notifications.filter(n => n.unread).length;
 
   const handleLogout = async () => {
     try {
@@ -94,20 +87,7 @@ const Header = ({ onMenuToggle, showMenuButton = false }) => {
           <LanguageSwitcher />
           
           {/* Notifications */}
-          <div className="relative">
-            <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative">
-              <BellIcon className="w-6 h-6 text-gray-600 dark:text-gray-400" />
-              {unreadCount > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-                >
-                  {unreadCount}
-                </motion.span>
-              )}
-            </button>
-          </div>
+          <NotificationBell />
 
           {/* Settings */}
           <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">

@@ -383,12 +383,12 @@
     "signIn": "تسجيل الدخول",
     "signUp": "إنشاء حساب",
     "welcomeBack": "مرحباً بعودتك",
-    "signInToAccount": "قم بتسجيل الدخول إلى حساب AdSynq الخاص بك",
+    "signInToAccount": "قم بتسجيل الدخول إلى حساب KAMPALO الخاص بك",
     "enterEmail": "أدخل بريدك الإلكتروني",
     "enterPassword": "أدخل كلمة المرور",
     "signUpForFree": "سجل مجاناً",
     "signInHere": "سجل الدخول هنا",
-    "welcomeToAdSynq": "مرحباً بك في AdSynq",
+    "welcomeToKAMPALO": "مرحباً بك في KAMPALO",
     "createAccount": "أنشئ حسابك للبدء",
     "fullName": "الاسم الكامل",
     "username": "اسم المستخدم",
@@ -520,6 +520,12 @@
       "whiteLabel": "حل White Label",
       "customIntegrations": "تكاملات API مخصصة"
     }
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "markAllRead": "تعليم الكل كمقروء",
+    "empty": "لا توجد إشعارات غير مقروءة",
+    "ariaLabel": "فتح الإشعارات"
   }
 }
 

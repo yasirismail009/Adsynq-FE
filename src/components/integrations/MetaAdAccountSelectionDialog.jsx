@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
 import { 
   ChartBarIcon, 
   CheckCircleIcon,
@@ -8,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Modal from '../ui/Modal';
 import { usePlanType, useUsageLimits } from '../../hooks/useSubscription';
+import { selectSubscriptionId } from '../../store/slices/subscriptionSlice';
 
 const MetaAdAccountSelectionDialog = ({
   isOpen,
@@ -20,6 +22,7 @@ const MetaAdAccountSelectionDialog = ({
   const { t } = useTranslation();
   const { isFree, isPremium, isEnterprise } = usePlanType();
   const { maxAdAccounts, maxCampaigns } = useUsageLimits();
+  const subscriptionId = useSelector(selectSubscriptionId);
   
   // State for selected ad accounts and campaigns
   const [selectedAccounts, setSelectedAccounts] = useState(new Set());
@@ -27,9 +30,13 @@ const MetaAdAccountSelectionDialog = ({
   const [expandedAccount, setExpandedAccount] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Determine limits based on plan
+  // Determine limits based on subscription ID
+  // If subscription ID === 1: can select 1 ad account and 1 campaign
+  // Otherwise: can only select ad accounts (no campaign selection)
+  const isSubscriptionIdOne = subscriptionId === 1;
   const maxAccounts = isFree ? 1 : isPremium ? 2 : Infinity;
-  const maxCampaignsPerAccount = isFree ? 1 : Infinity; // Free: 1 campaign total, Premium: all campaigns
+  const allowCampaignSelection = isSubscriptionIdOne; // Only allow campaign selection if subscription ID === 1
+  const maxCampaignsPerAccount = isSubscriptionIdOne ? 1 : 0; // 1 campaign if subscription ID === 1, 0 otherwise (disabled)
 
   // Reset selections when dialog opens/closes
   useEffect(() => {
@@ -66,25 +73,33 @@ const MetaAdAccountSelectionDialog = ({
         return; // Cannot select more accounts
       }
       newSelected.add(accountId);
-      setExpandedAccount(accountId);
+      // Only expand if campaign selection is allowed (subscription ID === 1)
+      if (allowCampaignSelection) {
+        setExpandedAccount(accountId);
+      }
     }
     
     setSelectedAccounts(newSelected);
   };
 
-  // Handle campaign selection
+  // Handle campaign selection (only allowed if subscription ID === 1)
   const handleCampaignToggle = (accountId, campaignId) => {
+    // Only allow campaign selection if subscription ID === 1
+    if (!allowCampaignSelection) {
+      return;
+    }
+    
     const accountCampaigns = selectedCampaigns.get(accountId) || new Set();
     const newAccountCampaigns = new Set(accountCampaigns);
     
     if (newAccountCampaigns.has(campaignId)) {
       newAccountCampaigns.delete(campaignId);
     } else {
-      // Check limit for free plan (1 campaign total across all accounts)
-      if (isFree) {
+      // Check limit: 1 campaign total across all accounts (subscription ID === 1)
+      if (isSubscriptionIdOne) {
         const totalSelected = Array.from(selectedCampaigns.values()).reduce((sum, set) => sum + set.size, 0);
         if (totalSelected >= 1) {
-          return; // Cannot select more campaigns on free plan
+          return; // Cannot select more than 1 campaign
         }
       }
       newAccountCampaigns.add(campaignId);
@@ -115,7 +130,8 @@ const MetaAdAccountSelectionDialog = ({
       if (accountIds.length > 0) {
         data.ad_account_ids = accountIds;
       }
-      if (campaignIds.length > 0) {
+      // Only include campaign_ids if subscription ID === 1
+      if (allowCampaignSelection && campaignIds.length > 0) {
         data.campaign_ids = campaignIds;
       }
 
@@ -142,7 +158,10 @@ const MetaAdAccountSelectionDialog = ({
   };
 
   // Check if submit is enabled
-  const canSubmit = selectedAccounts.size > 0 && (!isFree || getTotalSelectedCampaigns() === 1);
+  // If subscription ID === 1: require 1 account and 1 campaign
+  // Otherwise: only require at least 1 account
+  const canSubmit = selectedAccounts.size > 0 && 
+    (isSubscriptionIdOne ? getTotalSelectedCampaigns() === 1 : true);
 
   return (
     <Modal
@@ -161,11 +180,13 @@ const MetaAdAccountSelectionDialog = ({
           <div className="flex items-center space-x-2 text-sm text-blue-700 dark:text-blue-400">
             <ChartBarIcon className="w-4 h-4" />
             <span>
-              {isFree 
+              {isSubscriptionIdOne
+                ? t('integrations.metaAdAccountSelection.subscriptionOneLimit', 'Select 1 ad account and 1 campaign')
+                : isFree 
                 ? t('integrations.metaAdAccountSelection.freeLimit', 'Free Plan: Select 1 ad account and 1 campaign')
                 : isPremium
-                ? t('integrations.metaAdAccountSelection.premiumLimit', 'Premium Plan: Select up to 2 ad accounts with all their campaigns')
-                : t('integrations.metaAdAccountSelection.enterpriseLimit', 'Enterprise Plan: Select unlimited ad accounts and campaigns')
+                ? t('integrations.metaAdAccountSelection.premiumLimit', 'Premium Plan: Select up to 2 ad accounts (campaigns not available)')
+                : t('integrations.metaAdAccountSelection.enterpriseLimit', 'Enterprise Plan: Select unlimited ad accounts (campaigns not available)')
               }
             </span>
           </div>
@@ -194,7 +215,7 @@ const MetaAdAccountSelectionDialog = ({
               {onRetry && (
                 <button
                   onClick={onRetry}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg transition-colors"
                 >
                   {t('common.retry', 'Retry')}
                 </button>
@@ -238,7 +259,7 @@ const MetaAdAccountSelectionDialog = ({
                       <div className="flex items-center space-x-3 flex-1">
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                           isSelected 
-                            ? 'bg-blue-600 border-blue-600' 
+                            ? 'bg-[#174A6E] border-[#174A6E]' 
                             : 'border-gray-300 dark:border-gray-600'
                         }`}>
                           {isSelected && (
@@ -260,28 +281,31 @@ const MetaAdAccountSelectionDialog = ({
                             {accountCampaigns.size} {t('integrations.customers.selected', 'selected')}
                           </span>
                         )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isSelected) {
-                              setExpandedAccount(isExpanded ? null : accountId);
-                            } else if (canSelectAccount()) {
-                              handleAccountToggle(accountId);
-                            }
-                          }}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                        >
-                          {isExpanded ? (
-                            <XMarkIcon className="w-5 h-5" />
-                          ) : (
-                            <ChartBarIcon className="w-5 h-5" />
-                          )}
-                        </button>
+                        {/* Only show expand button if subscription ID === 1 (campaigns available) */}
+                        {allowCampaignSelection && campaigns.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isSelected) {
+                                setExpandedAccount(isExpanded ? null : accountId);
+                              } else if (canSelectAccount()) {
+                                handleAccountToggle(accountId);
+                              }
+                            }}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                          >
+                            {isExpanded ? (
+                              <XMarkIcon className="w-5 h-5" />
+                            ) : (
+                              <ChartBarIcon className="w-5 h-5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {/* Campaigns List (Expanded) */}
-                    {isSelected && isExpanded && campaigns.length > 0 && (
+                    {/* Campaigns List (Expanded) - Only show if subscription ID === 1 */}
+                    {isSelected && isExpanded && allowCampaignSelection && campaigns.length > 0 && (
                       <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-2">
                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                           {t('common.campaigns', 'Campaigns')}
@@ -289,7 +313,8 @@ const MetaAdAccountSelectionDialog = ({
                         {campaigns.map((campaign) => {
                           const campaignId = campaign.campaign_id || campaign.id;
                           const isCampaignSelected = accountCampaigns.has(campaignId);
-                          const canSelect = !isFree || getTotalSelectedCampaigns() < 1 || isCampaignSelected;
+                          const totalSelected = getTotalSelectedCampaigns();
+                          const canSelect = (isSubscriptionIdOne && totalSelected < 1) || isCampaignSelected;
 
                           return (
                             <div
@@ -322,12 +347,21 @@ const MetaAdAccountSelectionDialog = ({
                                   </p>
                                 </div>
                               </div>
-                              {!canSelect && isFree && (
+                              {!canSelect && isSubscriptionIdOne && (
                                 <SparklesIcon className="w-4 h-4 text-blue-500" />
                               )}
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+                    
+                    {/* Show message if campaigns are not available for this subscription */}
+                    {isSelected && isExpanded && !allowCampaignSelection && campaigns.length > 0 && (
+                      <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+                          {t('integrations.metaAdAccountSelection.campaignsNotAvailable', 'Campaign selection is not available for your subscription plan. Only ad accounts can be selected.')}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -344,7 +378,9 @@ const MetaAdAccountSelectionDialog = ({
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {selectedAccounts.size > 0 ? (
               <span>
-                {selectedAccounts.size} {t('integrations.accounts', 'account(s)')} • {getTotalSelectedCampaigns()} {t('common.campaigns', 'campaign(s)')} {t('integrations.metaAdAccountSelection.selected', 'selected')}
+                {selectedAccounts.size} {t('integrations.accounts', 'account(s)')}
+                {allowCampaignSelection && ` • ${getTotalSelectedCampaigns()} ${t('common.campaigns', 'campaign(s)')}`}
+                {' '}{t('integrations.metaAdAccountSelection.selected', 'selected')}
               </span>
             ) : (
               <span>
@@ -363,7 +399,7 @@ const MetaAdAccountSelectionDialog = ({
             <button
               onClick={handleSubmit}
               disabled={!canSubmit || isSubmitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="px-4 py-2 bg-[#174A6E] hover:bg-[#0B3049] text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isSubmitting ? (
                 <>

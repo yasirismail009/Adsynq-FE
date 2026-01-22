@@ -305,6 +305,7 @@ export const selectSubscriptionPlansLoading = (state) => state.subscription.plan
 export const selectSubscriptionPlansError = (state) => state.subscription.plansError;
 
 export const selectCurrentSubscription = (state) => state.subscription.currentSubscription;
+export const selectSubscriptionId = (state) => state.subscription.currentSubscription?.id;
 export const selectSubscriptionLoading = (state) => state.subscription.subscriptionLoading;
 export const selectSubscriptionError = (state) => state.subscription.subscriptionError;
 

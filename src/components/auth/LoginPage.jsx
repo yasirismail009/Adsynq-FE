@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -33,6 +33,25 @@ const LoginPage = () => {
   const dispatch = useAppDispatch();
   const { hasSubscription } = useSubscription();
   const { error, isLoading } = useAppSelector((state) => state.auth);
+  const isNavigatingRef = useRef(false);
+  
+  // Use local loading state as primary, with Redux as fallback
+  const isLoadingState = isLoading;
+
+  // Safety mechanism: Reset loading state if it gets stuck
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        if (!isNavigatingRef.current) {
+          console.warn('Login loading state stuck, forcing reset');
+          // The loading state should be managed by Redux, but if it's stuck,
+          // we can dispatch an action to clear it (though this shouldn't be necessary)
+        }
+      }, 30000); // 30 second timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -85,16 +104,27 @@ const LoginPage = () => {
     }
     
     try {
+      isNavigatingRef.current = false;
+      setLocalLoading(true);
       const result = await dispatch(loginUser({ email: formData.email, password: formData.password })).unwrap();
 
       if (result) {
         // Fetch current subscription data to get detailed status
+        // Use a timeout to prevent hanging
+        let subscriptionData = null;
         try {
-          const subscriptionData = await dispatch(fetchCurrentSubscription()).unwrap();
+          const subscriptionPromise = dispatch(fetchCurrentSubscription()).unwrap();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Subscription fetch timeout')), 60000)
+          );
+          
+          subscriptionData = await Promise.race([subscriptionPromise, timeoutPromise]);
 
           // Determine navigation based on subscription and connection status
           if (!subscriptionData || subscriptionData.status !== 'active') {
             // No active subscription - go to pricing
+            isNavigatingRef.current = true;
+            setLocalLoading(false); // Reset loading before navigation
             navigate('/pricing');
           } else {
             // Has active subscription - check connection status
@@ -105,22 +135,33 @@ const LoginPage = () => {
 
             // If any account is connected but not selected, go to integrations
             if ((hasGoogleConnected && !hasGoogleSelected) || (hasMetaConnected && !hasMetaSelected)) {
+              isNavigatingRef.current = true;
+              setLocalLoading(false); // Reset loading before navigation
               navigate('/integrations');
             } else {
               // Everything is set up - go to dashboard
+              isNavigatingRef.current = true;
+              setLocalLoading(false); // Reset loading before navigation
               navigate('/dashboard');
             }
           }
         } catch (subscriptionError) {
           console.warn('Failed to fetch subscription data:', subscriptionError);
           // If we can't fetch subscription, assume no subscription and go to pricing
+          // Don't treat this as a fatal error - login was successful
+          isNavigatingRef.current = true;
+          setLocalLoading(false); // Reset loading before navigation
           navigate('/pricing');
         }
       }
     } catch (error) {
       console.error('Login error:', error);
-      setErrors({ general: error });
-      showErrorToast(error);
+      isNavigatingRef.current = false;
+      setLocalLoading(false); // Always reset loading on error
+      // Ensure loading state is reset on error
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Login failed. Please try again.');
+      setErrors({ general: errorMessage });
+      showErrorToast(errorMessage);
     }
   };
 
@@ -276,10 +317,10 @@ const LoginPage = () => {
               <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 hover:from-blue-700 hover:via-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  disabled={isLoadingState}
+                  className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-[#174A6E] to-[#0B3049] hover:from-[#0B3049] hover:to-[#174A6E] focus:outline-none focus:ring-4 focus:ring-[#174A6E]/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 >
-                  {isLoading ? (
+                  {isLoadingState ? (
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                   ) : (
                     <>

@@ -16,7 +16,9 @@ import {
   EyeIcon as ViewIcon,
   CursorArrowRaysIcon,
   BuildingOfficeIcon,
-  SparklesIcon
+  SparklesIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { redirectToGoogleAuth } from '../../utils/google-oauth-handler';
 import { usePlanType } from '../../hooks/useSubscription';
@@ -42,10 +44,12 @@ const IntegrationCard = ({
   onConnect,
   onDisconnect,
   onSubscribe,
+  onRefreshTokens,
   hasSubscription,
   isConnecting = false,
   isDisconnecting = false,
-  isNavigating = false
+  isNavigating = false,
+  isRefreshing = false
 }) => {
   const { t } = useTranslation();
   const { isFree } = usePlanType();
@@ -60,7 +64,7 @@ const IntegrationCard = ({
     },
     meta: { 
       name: t('integrations.metaAds'), 
-      color: 'bg-blue-600', 
+      color: 'bg-[#174A6E]', 
       icon: '/assets/facebook.svg',
       brandColor: '#1877F2',
       bgColor: '#e7f3ff',
@@ -77,6 +81,14 @@ const IntegrationCard = ({
                                   (primaryPlatform?.type === 'meta' && metaConnections && metaConnections.length > 0);
   const isConnected = status === 'active' || hasPlatformConnections;
   const isInactive = status === 'inactive';
+  
+  // Check if this specific card's connection(s) need refresh (per platform).
+  // Only show when needs_refresh is strictly boolean true; hide when false, undefined, or non-boolean.
+  const g0 = googleAccounts?.[0];
+  const m0 = metaConnections?.[0];
+  const googleNeedsRefresh = Boolean(googleAccounts?.length && typeof g0?.needs_refresh === 'boolean' && g0.needs_refresh === true);
+  const metaNeedsRefresh = Boolean(metaConnections?.length && typeof m0?.needs_refresh === 'boolean' && m0.needs_refresh === true);
+  const needsRefresh = googleNeedsRefresh || metaNeedsRefresh;
   
   // Get status display info
   const getStatusInfo = () => {
@@ -138,15 +150,39 @@ const IntegrationCard = ({
   console.log('IntegrationCard - googleAccounts:', googleAccounts, 'metaConnections:', metaConnections, 'platformType:', primaryPlatform?.type);
 
   // Handle connect button click for different platforms (currently only Google and Meta supported)
-  const handleConnect = () => {
+  const handleConnect = (isRefresh = false) => {
     const platformType = integrations[0]?.type;
     
+    // If onConnect is provided, use it (it will handle the refresh flag)
+    if (onConnect) {
+      // Create integration object from props to pass to onConnect
+      const integrationData = {
+        id,
+        title,
+        domain,
+        integrations,
+        metrics,
+        status,
+        paymentStatus,
+        createdDate,
+        updatedDate,
+        userData,
+        platformData
+      };
+      onConnect(integrationData, isRefresh);
+      return;
+    }
+    
+    // Fallback to direct OAuth redirect (for backward compatibility)
     if (platformType === 'google') {
       // Use the new Google OAuth utility function
       redirectToGoogleAuth();
-    } else {
-      onConnect();
     }
+  };
+  
+  // Handle refresh button click
+  const handleRefresh = () => {
+    handleConnect(true); // Pass isRefresh = true
   };
 
   return (
@@ -427,7 +463,7 @@ const IntegrationCard = ({
                             </div>
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+                            <div className="flex items-center space-x-1 bg-gradient-to-r from-[#174A6E] to-[#0B3049] text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
                               <SparklesIcon className="w-3 h-3" />
                               <span>{t('integrations.customers.premium', 'Premium')}</span>
                             </div>
@@ -459,7 +495,7 @@ const IntegrationCard = ({
                 {/* Connection Header */}
                 <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    <div className="w-10 h-10 bg-[#174A6E] rounded-full flex items-center justify-center">
                       <BuildingOfficeIcon className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -591,7 +627,7 @@ const IntegrationCard = ({
                             </div>
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+                            <div className="flex items-center space-x-1 bg-gradient-to-r from-[#174A6E] to-[#0B3049] text-white px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
                               <SparklesIcon className="w-3 h-3" />
                               <span>{t('integrations.customers.premium', 'Premium')}</span>
                             </div>
@@ -609,11 +645,37 @@ const IntegrationCard = ({
 
       {/* Action Buttons */}
       <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
+        {/* Show refresh connection warning and button if needs refresh */}
+        {isConnected && needsRefresh && (
+          <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-300">
+                {t('integrations.connectionNeedsRefresh', 'Connection needs refresh')}
+              </span>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={isConnecting || isDisconnecting}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg font-medium bg-yellow-600 hover:bg-yellow-700 text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed rtl:flex-row-reverse"
+            >
+              {isConnecting ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <ArrowPathIcon className="w-4 h-4" />
+              )}
+              <span className="text-sm">
+                {isConnecting ? t('integrations.connecting', 'Connecting...') : t('integrations.refreshConnection', 'Refresh Connection')}
+              </span>
+            </button>
+          </div>
+        )}
+        
         {isConnected ? (
           <div className="flex flex-col sm:flex-row gap-3">
             <a
               href={primaryPlatform?.type === 'google' ? '/google' : primaryPlatform?.type === 'meta' ? `/meta/${id}` : `/platform/${id}`}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-medium bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5 rtl:flex-row-reverse"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-medium bg-[#174A6E] dark:bg-[#174A6E] text-white hover:bg-[#0B3049] dark:hover:bg-[#0B3049] shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5 rtl:flex-row-reverse"
             >
               <ChartBarIcon className="w-5 h-5" />
               <span className="text-sm">{t('common.dashboard')}</span>
@@ -642,7 +704,7 @@ const IntegrationCard = ({
         ) : !hasSubscription ? (
           <button
             onClick={onSubscribe}
-            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-semibold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 rtl:flex-row-reverse"
+            className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-lg font-semibold text-white bg-gradient-to-r from-[#174A6E] to-[#0B3049] hover:from-[#0B3049] hover:to-[#174A6E] shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 rtl:flex-row-reverse"
           >
             <CurrencyDollarIcon className="w-5 h-5" />
             <span className="text-sm">{t('integrations.subscribe')}</span>

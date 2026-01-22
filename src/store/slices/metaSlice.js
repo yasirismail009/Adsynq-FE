@@ -11,6 +11,13 @@ export const fetchMetaOverallStats = createAsyncThunk(
     } catch (error) {
       console.error('Error fetching Meta overall stats:', error);
       
+      // Handle timeout errors gracefully
+      if (error.isTimeout || error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.warn('Meta overall stats request timed out');
+        // Return a graceful error that won't break the UI
+        return rejectWithValue('Request timeout. The data may take longer to load. Please try again.');
+      }
+      
       // Extract error message from response data
       let errorMessage = 'Failed to fetch Meta stats';
       if (error.response?.data) {

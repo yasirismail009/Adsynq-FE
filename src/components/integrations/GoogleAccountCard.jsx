@@ -120,7 +120,7 @@ const GoogleAccountCard = ({ account, onSelectCustomer }) => {
                   </div>
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                  <div className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-full text-xs font-medium shadow-lg">
+                  <div className="flex items-center space-x-2 bg-gradient-to-r from-[#174A6E] to-[#0B3049] text-white px-4 py-2 rounded-full text-xs font-medium shadow-lg">
                     <SparklesIcon className="w-4 h-4" />
                     <span>{t('integrations.customers.premium', 'Premium')}</span>
                   </div>
